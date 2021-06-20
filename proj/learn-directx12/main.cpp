@@ -1,11 +1,24 @@
 #include <Windows.h>
+#include <d3d12.h>
+#include <dxgi1_6.h>
 #include <tchar.h>
+
 #ifdef _DEBUG
 #include <iostream>
 #endif
 
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "dxgi.lib")
+
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
+
+// DXGI (DirectX Graphics Infrastructure)
+IDXGIFactory6* dxgiFactory_ = nullptr;
+IDXGISwapChain4* swapchain_ = nullptr;
+
+// Direct3D
+ID3D12Device* dev_ = nullptr;
 
 /**
  * @brief コンソール画面にフォーマット付き文字列を表示
@@ -65,8 +78,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       w.hInstance,           //呼び出しアプリケーションハンドル
       nullptr);              //追加パラメータ
 
-  // ウィンドウ表示
+  /////////////////////////
+  // Initialie DirectX12 //
+  /////////////////////////
+
+  //フィーチャレベル列挙
+  D3D_FEATURE_LEVEL levels[] = {
+      D3D_FEATURE_LEVEL_12_1,
+      D3D_FEATURE_LEVEL_12_0,
+      D3D_FEATURE_LEVEL_11_1,
+      D3D_FEATURE_LEVEL_11_0,
+  };
+
+  // Direct3Dデバイスの初期化
+  D3D_FEATURE_LEVEL featureLevel;
+  IDXGIAdapter* tmpAdapter = nullptr;
+  for (auto l : levels) {
+    if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&dev_)) == S_OK) {
+      featureLevel = l;
+      break;
+    }
+  }
+
+  /////////////////
+  // Show Window //
+  /////////////////
+
   ShowWindow(hwnd, SW_SHOW);
+
   MSG msg = {};
   while (true) {
     if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
