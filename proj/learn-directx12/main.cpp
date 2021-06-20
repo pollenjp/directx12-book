@@ -12,7 +12,7 @@ void DebugOutputFormatString(const char* format, ...) {
 #ifdef _DEBUG
   va_list valist;
   va_start(valist, format);
-  printf(format, valist);
+  vprintf(format, valist);
   va_end(valist);
 #endif
 }
