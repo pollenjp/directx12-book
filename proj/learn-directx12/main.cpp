@@ -36,10 +36,14 @@ void DebugOutputFormatString(const char* format, ...) {
 }
 
 //面倒ですが、ウィンドウプロシージャは必須なので書いておきます
-LRESULT WindowProcedure(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-  if (msg == WM_DESTROY) {  //ウィンドウが破棄されたら呼ばれます
-    PostQuitMessage(0);  // OSに対して「もうこのアプリは終わるんや」と伝える
-    return 0;
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+  switch (msg) {
+    case WM_DESTROY:
+      PostQuitMessage(0);  // OSに対して「もうこのアプリは終わるんや」と伝える
+      return 0;
+
+    default:
+      break;
   }
   return DefWindowProc(hwnd, msg, wparam, lparam);  //規定の処理を行う
 }
@@ -53,7 +57,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // ウィンドウクラス生成＆登録
   WNDCLASSEX w = {};
   w.cbSize = sizeof(WNDCLASSEX);
-  w.lpfnWndProc = (WNDPROC)WindowProcedure;  //コールバック関数の指定
+  w.lpfnWndProc = (WNDPROC)WindowProc;  //コールバック関数の指定
   // アプリケーションクラス名(適当でいいです)
   w.lpszClassName = _T("DirectXTest");
   w.hInstance = GetModuleHandle(0);  //ハンドルの取得
