@@ -110,6 +110,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   ShowWindow(hwnd, SW_SHOW);
 
+  //////////////////
+  // message loop //
+  //////////////////
+
   MSG msg = {};
   while (true) {
     if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
