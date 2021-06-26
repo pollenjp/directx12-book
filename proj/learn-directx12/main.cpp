@@ -105,7 +105,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   std::vector<IDXGIAdapter*> adapters;
   IDXGIAdapter* tmpAdapter = nullptr;
-  for (int i = 0;
+  for (UINT i = 0;
        dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND;
        ++i) {
     adapters.push_back(tmpAdapter);
