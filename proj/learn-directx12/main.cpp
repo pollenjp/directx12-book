@@ -137,6 +137,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
   }
 
+  ID3D12CommandAllocator* cmdAllocator_ = nullptr;
+  ID3D12GraphicsCommandList* cmdList_ = nullptr;
+  // Create command list and command allocator
+  result = dev_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                        IID_PPV_ARGS(&cmdAllocator_));
+  result =
+      dev_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator_,
+                              nullptr, IID_PPV_ARGS(&cmdList_));
+
   /////////////////
   // Show Window //
   /////////////////
