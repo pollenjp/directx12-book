@@ -3,6 +3,8 @@
 #include <dxgi1_6.h>
 #include <tchar.h>
 
+#include <vector>
+
 #ifdef _DEBUG
 #include <iostream>
 #endif
@@ -86,6 +88,38 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // Initialie DirectX12 //
   /////////////////////////
 
+  // D3D12CreateDevice() 関数の第1引数を nullptr にしてしまうと,
+  // 予期したグラフィックスボードが選ばれるとは限らないため,
+  // アダプターを明示的に指定する.
+
+  // enumerate adapters
+  HRESULT result = S_OK;
+  if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG,
+                                IID_PPV_ARGS(&dxgiFactory_)))) {
+    // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
+    if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&dxgiFactory_)))) {
+      // それでも FAIL する場合は, error return.
+      return -1;
+    }
+  }
+
+  std::vector<IDXGIAdapter*> adapters;
+  IDXGIAdapter* tmpAdapter = nullptr;
+  for (int i = 0;
+       dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND;
+       ++i) {
+    adapters.push_back(tmpAdapter);
+  }
+  for (auto adpt : adapters) {
+    DXGI_ADAPTER_DESC adesc = {};
+    adpt->GetDesc(&adesc);
+    std::wstring strDesc = adesc.Description;
+    if (strDesc.find(L"NVIDIA") != std::string::npos) {
+      tmpAdapter = adpt;
+      break;
+    }
+  }
+
   //フィーチャレベル列挙
   D3D_FEATURE_LEVEL levels[] = {
       D3D_FEATURE_LEVEL_12_1,
@@ -96,7 +130,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   // Direct3Dデバイスの初期化
   D3D_FEATURE_LEVEL featureLevel;
-  IDXGIAdapter* tmpAdapter = nullptr;
   for (auto l : levels) {
     if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&dev_)) == S_OK) {
       featureLevel = l;
