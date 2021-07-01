@@ -70,11 +70,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // ウィンドウのサイズはちょっと面倒なので関数を使って補正する
   AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
   // ウィンドウオブジェクトの生成
-  HWND hwnd = CreateWindow(
-      w.lpszClassName,  //クラス名指定
-      _T("DX12 Test"),  // タイトルバーの文字
+  HWND hwnd = CreateWindow(w.lpszClassName,       //クラス名指定
+                           _T("DX12 Test"),       // タイトルバーの文字
                         // TODO:  日本語が使えなかった？
-      WS_OVERLAPPEDWINDOW,  //タイトルバーと境界線があるウィンドウです
+                           WS_OVERLAPPEDWINDOW,   //タイトルバーと境界線があるウィンドウです
       CW_USEDEFAULT,         //表示X座標はOSにお任せします
       CW_USEDEFAULT,         //表示Y座標はOSにお任せします
       wrc.right - wrc.left,  //ウィンドウ幅
@@ -94,8 +93,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   // enumerate adapters
   HRESULT result = S_OK;
-  if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG,
-                                IID_PPV_ARGS(&dxgiFactory_)))) {
+  if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgiFactory_)))) {
     // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
     if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&dxgiFactory_)))) {
       // それでも FAIL する場合は, error return.
@@ -105,9 +103,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   std::vector<IDXGIAdapter*> adapters;
   IDXGIAdapter* tmpAdapter = nullptr;
-  for (UINT i = 0;
-       dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND;
-       ++i) {
+  for (UINT i = 0; dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
     adapters.push_back(tmpAdapter);
   }
   for (auto adpt : adapters) {
@@ -137,14 +133,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
   }
 
+  // Create command list and command allocator
   ID3D12CommandAllocator* cmdAllocator_ = nullptr;
   ID3D12GraphicsCommandList* cmdList_ = nullptr;
-  // Create command list and command allocator
-  result = dev_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                        IID_PPV_ARGS(&cmdAllocator_));
-  result =
-      dev_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator_,
-                              nullptr, IID_PPV_ARGS(&cmdList_));
+  result = dev_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmdAllocator_));
+  result = dev_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator_, nullptr, IID_PPV_ARGS(&cmdList_));
 
   // command queue
   ID3D12CommandQueue* cmdQueue_ = nullptr;
