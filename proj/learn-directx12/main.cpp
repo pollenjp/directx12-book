@@ -15,13 +15,6 @@
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
 
-// DXGI (DirectX Graphics Infrastructure)
-IDXGIFactory6* dxgiFactory_ = nullptr;
-IDXGISwapChain4* swapchain_ = nullptr;
-
-// Direct3D
-ID3D12Device* dev_ = nullptr;
-
 /**
  * @brief コンソール画面にフォーマット付き文字列を表示
  * @param format フォーマット（%d とか%f とかの）
@@ -72,16 +65,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // ウィンドウオブジェクトの生成
   HWND hwnd = CreateWindow(w.lpszClassName,       //クラス名指定
                            _T("DX12 Test"),       // タイトルバーの文字
-                        // TODO:  日本語が使えなかった？
+                                                  // TODO:  日本語が使えなかった？
                            WS_OVERLAPPEDWINDOW,   //タイトルバーと境界線があるウィンドウです
-      CW_USEDEFAULT,         //表示X座標はOSにお任せします
-      CW_USEDEFAULT,         //表示Y座標はOSにお任せします
-      wrc.right - wrc.left,  //ウィンドウ幅
-      wrc.bottom - wrc.top,  //ウィンドウ高
-      nullptr,               //親ウィンドウハンドル
-      nullptr,               //メニューハンドル
-      w.hInstance,           //呼び出しアプリケーションハンドル
-      nullptr);              //追加パラメータ
+                           CW_USEDEFAULT,         //表示X座標はOSにお任せします
+                           CW_USEDEFAULT,         //表示Y座標はOSにお任せします
+                           wrc.right - wrc.left,  //ウィンドウ幅
+                           wrc.bottom - wrc.top,  //ウィンドウ高
+                           nullptr,               //親ウィンドウハンドル
+                           nullptr,               //メニューハンドル
+                           w.hInstance,           //呼び出しアプリケーションハンドル
+                           nullptr);              //追加パラメータ
 
   /////////////////////////
   // Initialie DirectX12 //
@@ -91,7 +84,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // 予期したグラフィックスボードが選ばれるとは限らないため,
   // アダプターを明示的に指定する.
 
-  // enumerate adapters
+  // DXGI (DirectX Graphics Infrastructure)
+  IDXGIFactory6* dxgiFactory_ = nullptr;
+
   HRESULT result = S_OK;
   if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgiFactory_)))) {
     // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
@@ -101,6 +96,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
   }
 
+  // enumerate adapters
   std::vector<IDXGIAdapter*> adapters;
   IDXGIAdapter* tmpAdapter = nullptr;
   for (UINT i = 0; dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
@@ -125,6 +121,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   };
 
   // Direct3Dデバイスの初期化
+  ID3D12Device* dev_ = nullptr;
   D3D_FEATURE_LEVEL featureLevel;
   for (auto l : levels) {
     if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&dev_)) == S_OK) {
