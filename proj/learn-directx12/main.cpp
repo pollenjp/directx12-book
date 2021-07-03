@@ -149,6 +149,31 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;           // same as Command List.
   result = dev_->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&cmdQueue_));
 
+  // swap chain
+  DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
+  swapchainDesc.Width = window_width;
+  swapchainDesc.Height = window_height;
+  swapchainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  swapchainDesc.Stereo = false;
+  swapchainDesc.SampleDesc.Count = 1;
+  swapchainDesc.SampleDesc.Quality = 0;
+  swapchainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER;
+  swapchainDesc.BufferCount = 2;                 // double buffering
+  swapchainDesc.Scaling = DXGI_SCALING_STRETCH;  // window mode だから？
+  swapchainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+  swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+  swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+  IDXGISwapChain4* swapchain_ = nullptr;
+  // 先に作った ``hwnd`` の Swap Chain を作成
+  result = dxgiFactory_->CreateSwapChainForHwnd(cmdQueue_,                      // command queue
+                                                hwnd,                           // a handle to a window
+                                                &swapchainDesc,                 // desc
+                                                nullptr,                        // window mode
+                                                nullptr,                        // not restrict content
+                                                (IDXGISwapChain1**)&swapchain_  // out parameter
+  );
+
   /////////////////
   // Show Window //
   /////////////////
