@@ -174,6 +174,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                                 (IDXGISwapChain1**)&swapchain_  // out parameter
   );
 
+  // discriptor heap
+  D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+  heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;    //レンダーターゲットビューなので当然RTV
+  heapDesc.NodeMask = 0;                             // only use single GPU
+  heapDesc.NumDescriptors = 2;                       // double buffering (front, back buffer)
+  heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;  // 特に指定なし
+  ID3D12DescriptorHeap* rtvHeaps = nullptr;          // out parameter 用
+  result = dev_->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
+
   /////////////////
   // Show Window //
   /////////////////
