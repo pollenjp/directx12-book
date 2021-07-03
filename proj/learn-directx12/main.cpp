@@ -134,19 +134,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   ID3D12CommandAllocator* cmdAllocator_ = nullptr;
   ID3D12GraphicsCommandList* cmdList_ = nullptr;
   result = dev_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmdAllocator_));
-  result = dev_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAllocator_, nullptr, IID_PPV_ARGS(&cmdList_));
+  result = dev_->CreateCommandList(0,  // 0 is single-GPU operation
+                                   D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                   cmdAllocator_,  // この Command Allocator に対応する
+                                   nullptr,        //  nulltpr : dummy initial pipeline state
+                                   IID_PPV_ARGS(&cmdList_));
 
   // command queue
   ID3D12CommandQueue* cmdQueue_ = nullptr;
   D3D12_COMMAND_QUEUE_DESC cmdQueueDesc = {};
-  // タイムアウトなし
-  cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+  cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;  // タイムアウトなし
   cmdQueueDesc.NodeMask = 0;
-  // プライオリティ特に指定なし
-  cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-  // ここはコマンドリストと合わせてください
-  cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-  // コマンドキュー生成
+  cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;  // プライオリティ特に指定なし
+  cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;           // same as Command List.
   result = dev_->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&cmdQueue_));
 
   /////////////////
