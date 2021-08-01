@@ -129,6 +129,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       break;
     }
   }
+  if (dev_ == nullptr) {
+    std::exit(EXIT_FAILURE);
+  }
 
   // Create command list and command allocator
   ID3D12CommandAllocator* cmdAllocator_ = nullptr;
@@ -183,6 +186,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   ID3D12DescriptorHeap* rtvHeaps = nullptr;          // out parameter 用
   result = dev_->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
 
+  // Discriptor と スワップチェーン上のバックバッファと関連付け
+
+  DXGI_SWAP_CHAIN_DESC swcDesc = {};
+  result = swapchain_->GetDesc(&swcDesc);
+  std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
+  D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+  for (size_t i = 0; i < swcDesc.BufferCount; ++i) {
+    result = swapchain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&_backBuffers[i]));
+    dev_->CreateRenderTargetView(_backBuffers[i], nullptr, handle);
+    handle.ptr += dev_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+  }
+
   /////////////////
   // Show Window //
   /////////////////
@@ -203,6 +218,44 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     if (msg.message == WM_QUIT) {
       break;
     }
+
+    // DirectX処理
+    //バックバッファのインデックスを取得
+    auto bbIdx = swapchain_->GetCurrentBackBufferIndex();
+
+    D3D12_RESOURCE_BARRIER BarrierDesc = {};
+    BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    BarrierDesc.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    BarrierDesc.Transition.pResource = _backBuffers[bbIdx];
+    BarrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    cmdList_->ResourceBarrier(1, &BarrierDesc);
+
+    //レンダーターゲットを指定
+    auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+    rtvH.ptr += static_cast<ULONG_PTR>(bbIdx * dev_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+    cmdList_->OMSetRenderTargets(1, &rtvH, false, nullptr);
+
+    //画面クリア
+    float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};  //黄色
+    cmdList_->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+
+    BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+    BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+    cmdList_->ResourceBarrier(1, &BarrierDesc);
+
+    //命令のクローズ
+    cmdList_->Close();
+
+    //コマンドリストの実行
+    ID3D12CommandList* cmdlists[] = {cmdList_};
+    cmdQueue_->ExecuteCommandLists(1, cmdlists);
+    cmdAllocator_->Reset();                   //キューをクリア
+    cmdList_->Reset(cmdAllocator_, nullptr);  //再びコマンドリストをためる準備
+
+    //フリップ
+    swapchain_->Present(1, 0);
   }
 
   // もうクラス使わんから登録解除してや
