@@ -1,3 +1,4 @@
+#include <DirectXMath.h>
 #include <Windows.h>
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -78,8 +79,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // ウィンドウのサイズはちょっと面倒なので関数を使って補正する
   AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
   // ウィンドウオブジェクトの生成
-  HWND hwnd = CreateWindow(w.lpszClassName,       //クラス名指定
-                           _T("DX12 Test"),       // タイトルバーの文字
+  HWND hwnd = CreateWindow(w.lpszClassName,                 //クラス名指定
+                           _T("DX12 Simple Polygon Test"),  // タイトルバーの文字
                                                   // TODO:  日本語が使えなかった？
                            WS_OVERLAPPEDWINDOW,   //タイトルバーと境界線があるウィンドウです
                            CW_USEDEFAULT,         //表示X座標はOSにお任せします
@@ -232,6 +233,39 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   /////////////////
 
   ShowWindow(hwnd, SW_SHOW);
+
+  // Shader //
+  ////////////
+
+  DirectX::XMFLOAT3 vertices[] = {
+      {-0.4f, -0.7f, 0.0f},  //左下
+      {-0.4f, 0.7f, 0.0f},   //左上
+      {0.4f, -0.7f, 0.0f},   //右下
+      {0.4f, 0.7f, 0.0f},    //右上
+  };
+
+  D3D12_HEAP_PROPERTIES heapprop = {};
+  heapprop.Type = D3D12_HEAP_TYPE_UPLOAD;
+  heapprop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+  heapprop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+  D3D12_RESOURCE_DESC resdesc = {};
+  resdesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+  resdesc.Width = sizeof(vertices);
+  resdesc.Height = 1;
+  resdesc.DepthOrArraySize = 1;
+  resdesc.MipLevels = 1;
+  resdesc.Format = DXGI_FORMAT_UNKNOWN;
+  resdesc.SampleDesc.Count = 1;
+  resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+  resdesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+  // UPLOAD(確保は可能)
+  ID3D12Resource* vertBuff = nullptr;
+  result = _dev->CreateCommittedResource(&heapprop,  // heap description
+                                         D3D12_HEAP_FLAG_NONE,
+                                         &resdesc,  // resource description
+                                         D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
 
   //////////////////
   // message loop //
