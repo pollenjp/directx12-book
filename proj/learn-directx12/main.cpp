@@ -92,8 +92,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // アダプターを明示的に指定する.
 
   // DXGI (DirectX Graphics Infrastructure)
-  IDXGIFactory6* _dxgiFactory = nullptr;
-
   HRESULT result = S_OK;
   if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
     // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
@@ -128,7 +126,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   };
 
   // Direct3Dデバイスの初期化
-  ID3D12Device* _dev = nullptr;
   D3D_FEATURE_LEVEL featureLevel;
   for (auto l : levels) {
     if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&_dev)) == S_OK) {
