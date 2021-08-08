@@ -83,9 +83,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                            w.hInstance,           //呼び出しアプリケーションハンドル
                            nullptr);              //追加パラメータ
 
-  /////////////////////////
-  // Initialie DirectX12 //
-  /////////////////////////
+  //////////////////////////
+  // Initialize DirectX12 //
+  //////////////////////////
+
 
   // D3D12CreateDevice() 関数の第1引数を nullptr にしてしまうと,
   // 予期したグラフィックスボードが選ばれるとは限らないため,
