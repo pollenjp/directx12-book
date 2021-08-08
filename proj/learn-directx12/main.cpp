@@ -50,6 +50,14 @@ ID3D12GraphicsCommandList* _cmdList = nullptr;
 ID3D12CommandQueue* _cmdQueue = nullptr;
 IDXGISwapChain4* _swapchain = nullptr;
 
+void EnableDebugLayer() {
+  ID3D12Debug* debugLayer = nullptr;
+  if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugLayer)))) {
+    debugLayer->EnableDebugLayer();
+    debugLayer->Release();
+  }
+}
+
 #ifdef _DEBUG
 int main() {
 #else
@@ -87,6 +95,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // Initialize DirectX12 //
   //////////////////////////
 
+#ifdef _DEBUG
+  // デバッグレイヤーをオンに
+  // デバイス生成時前にやっておかないと、デバイス生成後にやるとデバイスがロストしてしまうので注意
+  EnableDebugLayer();
+#endif
 
   // D3D12CreateDevice() 関数の第1引数を nullptr にしてしまうと,
   // 予期したグラフィックスボードが選ばれるとは限らないため,
@@ -94,6 +107,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   // DXGI (DirectX Graphics Infrastructure)
   HRESULT result = S_OK;
+#ifdef _DEBUG
   if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
     // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
     if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
@@ -101,6 +115,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       return -1;
     }
   }
+#else
+  result = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
+#endif
 
   // enumerate adapters
   std::vector<IDXGIAdapter*> adapters;
@@ -199,6 +216,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
   }
 
+  ///////////
+  // Fence //
+  ///////////
+
+  ID3D12Fence* _fence = nullptr;
+  UINT64 _fenceVal = 0;
+  result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
+  // if (result != S_OK) {
+  //   std::exit(EXIT_FAILURE);
+  // }
+
   /////////////////
   // Show Window //
   /////////////////
@@ -252,6 +280,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     //コマンドリストの実行
     ID3D12CommandList* cmdlists[] = {_cmdList};
     _cmdQueue->ExecuteCommandLists(1, cmdlists);
+
+    ////待ち
+    _cmdQueue->Signal(_fence, ++_fenceVal);
+
+    if (_fence->GetCompletedValue() != _fenceVal) {
+      auto event = CreateEvent(nullptr, false, false, nullptr);
+      _fence->SetEventOnCompletion(_fenceVal, event);
+      if (event != 0) {
+        WaitForSingleObject(event, INFINITE);
+        CloseHandle(event);
+      }
+    }
+
     _cmdAllocator->Reset();                   //キューをクリア
     _cmdList->Reset(_cmdAllocator, nullptr);  //再びコマンドリストをためる準備
 
