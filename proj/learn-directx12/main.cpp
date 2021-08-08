@@ -43,6 +43,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   return DefWindowProc(hwnd, msg, wparam, lparam);  //規定の処理を行う
 }
 
+IDXGIFactory6* _dxgiFactory = nullptr;
+ID3D12Device* _dev = nullptr;
+ID3D12CommandAllocator* _cmdAllocator = nullptr;
+ID3D12GraphicsCommandList* _cmdList = nullptr;
+ID3D12CommandQueue* _cmdQueue = nullptr;
+IDXGISwapChain4* _swapchain = nullptr;
+
 #ifdef _DEBUG
 int main() {
 #else
@@ -85,12 +92,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // アダプターを明示的に指定する.
 
   // DXGI (DirectX Graphics Infrastructure)
-  IDXGIFactory6* dxgiFactory_ = nullptr;
+  IDXGIFactory6* _dxgiFactory = nullptr;
 
   HRESULT result = S_OK;
-  if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&dxgiFactory_)))) {
+  if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
     // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
-    if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&dxgiFactory_)))) {
+    if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
       // それでも FAIL する場合は, error return.
       return -1;
     }
@@ -99,7 +106,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // enumerate adapters
   std::vector<IDXGIAdapter*> adapters;
   IDXGIAdapter* tmpAdapter = nullptr;
-  for (UINT i = 0; dxgiFactory_->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+  for (UINT i = 0; _dxgiFactory->EnumAdapters(i, &tmpAdapter) != DXGI_ERROR_NOT_FOUND; ++i) {
     adapters.push_back(tmpAdapter);
   }
   for (auto adpt : adapters) {
@@ -121,36 +128,33 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   };
 
   // Direct3Dデバイスの初期化
-  ID3D12Device* dev_ = nullptr;
+  ID3D12Device* _dev = nullptr;
   D3D_FEATURE_LEVEL featureLevel;
   for (auto l : levels) {
-    if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&dev_)) == S_OK) {
+    if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&_dev)) == S_OK) {
       featureLevel = l;
       break;
     }
   }
-  if (dev_ == nullptr) {
+  if (_dev == nullptr) {
     std::exit(EXIT_FAILURE);
   }
 
   // Create command list and command allocator
-  ID3D12CommandAllocator* cmdAllocator_ = nullptr;
-  ID3D12GraphicsCommandList* cmdList_ = nullptr;
-  result = dev_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmdAllocator_));
-  result = dev_->CreateCommandList(0,  // 0 is single-GPU operation
+  result = _dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_cmdAllocator));
+  result = _dev->CreateCommandList(0,  // 0 is single-GPU operation
                                    D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                   cmdAllocator_,  // この Command Allocator に対応する
+                                   _cmdAllocator,  // この Command Allocator に対応する
                                    nullptr,        //  nulltpr : dummy initial pipeline state
-                                   IID_PPV_ARGS(&cmdList_));
+                                   IID_PPV_ARGS(&_cmdList));
 
   // command queue
-  ID3D12CommandQueue* cmdQueue_ = nullptr;
   D3D12_COMMAND_QUEUE_DESC cmdQueueDesc = {};
   cmdQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;  // タイムアウトなし
   cmdQueueDesc.NodeMask = 0;
   cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;  // プライオリティ特に指定なし
   cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;           // same as Command List.
-  result = dev_->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&cmdQueue_));
+  result = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&_cmdQueue));
 
   // swap chain
   DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
@@ -167,14 +171,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   swapchainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
   swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-  IDXGISwapChain4* swapchain_ = nullptr;
   // 先に作った ``hwnd`` の Swap Chain を作成
-  result = dxgiFactory_->CreateSwapChainForHwnd(cmdQueue_,                      // command queue
+  result = _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue,                      // command queue
                                                 hwnd,                           // a handle to a window
                                                 &swapchainDesc,                 // desc
                                                 nullptr,                        // window mode
                                                 nullptr,                        // not restrict content
-                                                (IDXGISwapChain1**)&swapchain_  // out parameter
+                                                (IDXGISwapChain1**)&_swapchain  // out parameter
   );
 
   // discriptor heap
@@ -184,18 +187,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   heapDesc.NumDescriptors = 2;                       // double buffering (front, back buffer)
   heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;  // 特に指定なし
   ID3D12DescriptorHeap* rtvHeaps = nullptr;          // out parameter 用
-  result = dev_->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
+  result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
 
   // Discriptor と スワップチェーン上のバックバッファと関連付け
 
   DXGI_SWAP_CHAIN_DESC swcDesc = {};
-  result = swapchain_->GetDesc(&swcDesc);
+  result = _swapchain->GetDesc(&swcDesc);
   std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
   D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
   for (size_t i = 0; i < swcDesc.BufferCount; ++i) {
-    result = swapchain_->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&_backBuffers[i]));
-    dev_->CreateRenderTargetView(_backBuffers[i], nullptr, handle);
-    handle.ptr += dev_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    result = _swapchain->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&_backBuffers[i]));
+    _dev->CreateRenderTargetView(_backBuffers[i], nullptr, handle);
+    handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
   }
 
   /////////////////
@@ -221,7 +224,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // DirectX処理
     //バックバッファのインデックスを取得
-    auto bbIdx = swapchain_->GetCurrentBackBufferIndex();
+    auto bbIdx = _swapchain->GetCurrentBackBufferIndex();
 
     D3D12_RESOURCE_BARRIER BarrierDesc = {};
     BarrierDesc.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -230,32 +233,32 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     BarrierDesc.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
     BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-    cmdList_->ResourceBarrier(1, &BarrierDesc);
+    _cmdList->ResourceBarrier(1, &BarrierDesc);
 
     //レンダーターゲットを指定
     auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
-    rtvH.ptr += static_cast<ULONG_PTR>(bbIdx * dev_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-    cmdList_->OMSetRenderTargets(1, &rtvH, false, nullptr);
+    rtvH.ptr += static_cast<ULONG_PTR>(bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
+    _cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
 
     //画面クリア
     float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};  //黄色
-    cmdList_->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
+    _cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 
     BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
     BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-    cmdList_->ResourceBarrier(1, &BarrierDesc);
+    _cmdList->ResourceBarrier(1, &BarrierDesc);
 
     //命令のクローズ
-    cmdList_->Close();
+    _cmdList->Close();
 
     //コマンドリストの実行
-    ID3D12CommandList* cmdlists[] = {cmdList_};
-    cmdQueue_->ExecuteCommandLists(1, cmdlists);
-    cmdAllocator_->Reset();                   //キューをクリア
-    cmdList_->Reset(cmdAllocator_, nullptr);  //再びコマンドリストをためる準備
+    ID3D12CommandList* cmdlists[] = {_cmdList};
+    _cmdQueue->ExecuteCommandLists(1, cmdlists);
+    _cmdAllocator->Reset();                   //キューをクリア
+    _cmdList->Reset(_cmdAllocator, nullptr);  //再びコマンドリストをためる準備
 
     //フリップ
-    swapchain_->Present(1, 0);
+    _swapchain->Present(1, 0);
   }
 
   // もうクラス使わんから登録解除してや
