@@ -1,6 +1,7 @@
 #include <DirectXMath.h>
 #include <Windows.h>
 #include <d3d12.h>
+#include <d3dcompiler.h>
 #include <dxgi1_6.h>
 #include <tchar.h>
 
@@ -12,6 +13,7 @@
 
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
@@ -81,7 +83,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // ウィンドウオブジェクトの生成
   HWND hwnd = CreateWindow(w.lpszClassName,                 //クラス名指定
                            _T("DX12 Simple Polygon Test"),  // タイトルバーの文字
-                                                  // TODO:  日本語が使えなかった？
+                                                            // TODO:  日本語が使えなかった？
                            WS_OVERLAPPEDWINDOW,   //タイトルバーと境界線があるウィンドウです
                            CW_USEDEFAULT,         //表示X座標はOSにお任せします
                            CW_USEDEFAULT,         //表示Y座標はOSにお任せします
@@ -234,6 +236,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   ShowWindow(hwnd, SW_SHOW);
 
+  ////////////
   // Shader //
   ////////////
 
@@ -266,6 +269,58 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                          D3D12_HEAP_FLAG_NONE,
                                          &resdesc,  // resource description
                                          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
+
+  // copy vertices data to vertex buffer
+  DirectX::XMFLOAT3* vertMap = nullptr;
+  vertBuff->Map(0, nullptr, (void**)&vertMap);
+  std::copy(std::begin(vertices), std::end(vertices), vertMap);
+  vertBuff->Unmap(0, nullptr);
+
+  // create vertex buffer view
+  D3D12_VERTEX_BUFFER_VIEW vbView = {};
+  vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
+  vbView.SizeInBytes = sizeof(vertices);
+  vbView.StrideInBytes = sizeof(vertices[0]);
+
+  // load shader files
+  ID3DBlob* _vsBlob = nullptr;
+  ID3DBlob* _psBlob = nullptr;
+
+  ID3DBlob* errorBlob = nullptr;
+  result = D3DCompileFromFile(L"BasicVertexShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "BasicVS",
+                              "vs_5_0", D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_vsBlob, &errorBlob);
+  if (FAILED(result)) {
+    if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+      ::OutputDebugStringA("File was not found!");
+    } else {
+      std::string errstr;
+      errstr.resize(errorBlob->GetBufferSize());
+      std::copy_n((char*)errorBlob->GetBufferPointer(), errorBlob->GetBufferSize(), errstr.begin());
+      errstr += "\n";
+      OutputDebugStringA(errstr.c_str());
+    }
+    exit(EXIT_FAILURE);
+  }
+  result = D3DCompileFromFile(L"BasicPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "BasicPS", "ps_5_0",
+                              D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_psBlob, &errorBlob);
+  if (FAILED(result)) {
+    if (result == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND)) {
+      ::OutputDebugStringA("File was not found!");
+    } else {
+      std::string errstr;
+      errstr.resize(errorBlob->GetBufferSize());
+      std::copy_n((char*)errorBlob->GetBufferPointer(), errorBlob->GetBufferSize(), errstr.begin());
+      errstr += "\n";
+      OutputDebugStringA(errstr.c_str());
+    }
+    exit(EXIT_FAILURE);
+  }
+
+  // Vertex Layout
+  D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
+      {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
+       D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+  };
 
   //////////////////
   // message loop //
