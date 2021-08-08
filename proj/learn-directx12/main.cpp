@@ -241,10 +241,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   ////////////
 
   DirectX::XMFLOAT3 vertices[] = {
-      {-0.4f, -0.7f, 0.0f},  //左下
-      {-0.4f, 0.7f, 0.0f},   //左上
-      {0.4f, -0.7f, 0.0f},   //右下
-      {0.4f, 0.7f, 0.0f},    //右上
+      {-1.0f, -1.0f, 0.0f},  // 左下
+      {-1.0f, 1.0f, 0.0f},   // 左上
+      {1.0f, -1.0f, 0.0f},   // 右下
   };
 
   D3D12_HEAP_PROPERTIES heapprop = {};
