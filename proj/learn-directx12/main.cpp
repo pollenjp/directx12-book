@@ -328,6 +328,121 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       },
   };
 
+  ///////////////////////
+  // Graphics Pipeline //
+  ///////////////////////
+
+  D3D12_GRAPHICS_PIPELINE_STATE_DESC gpipeline = {};
+
+  // root signature
+
+  gpipeline.pRootSignature = nullptr;
+
+  // VS, vertex shader
+
+  gpipeline.VS.pShaderBytecode = _vsBlob->GetBufferPointer();
+  gpipeline.VS.BytecodeLength = _vsBlob->GetBufferSize();
+
+  // PS, pixel shader
+
+  gpipeline.PS.pShaderBytecode = _psBlob->GetBufferPointer();
+  gpipeline.PS.BytecodeLength = _psBlob->GetBufferSize();
+
+  // DS, domain shader
+
+  // HS , hull shader
+
+  // GS , geometry shader
+
+  // TODO:
+  // StreamOutput
+
+  // BlendState
+
+  gpipeline.BlendState.AlphaToCoverageEnable = false;  // alpha test, alpha blend
+  gpipeline.BlendState.IndependentBlendEnable = false;
+
+  D3D12_RENDER_TARGET_BLEND_DESC renderTargetBlendDesc = {};
+  renderTargetBlendDesc.BlendEnable = false;  // Disable alpha blending
+  renderTargetBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+  renderTargetBlendDesc.LogicOpEnable = false;  // Disable logic op
+  gpipeline.BlendState.RenderTarget[0] = renderTargetBlendDesc;
+
+  // SampleMask
+
+  gpipeline.SampleMask = D3D12_DEFAULT_SAMPLE_MASK;  // D3D12_DEFAULT_SAMPLE_MASK : 0xffffffff
+
+  // RasterizerState
+
+  gpipeline.RasterizerState.MultisampleEnable = false;        // disable anti-aliasing
+  gpipeline.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;  // disable culling
+  gpipeline.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
+  gpipeline.RasterizerState.DepthClipEnable = true;  // 深度方向のクリッピングは有効に
+  gpipeline.RasterizerState.FrontCounterClockwise = false;
+  gpipeline.RasterizerState.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+  gpipeline.RasterizerState.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+  gpipeline.RasterizerState.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+  gpipeline.RasterizerState.AntialiasedLineEnable = false;
+  gpipeline.RasterizerState.ForcedSampleCount = 0;
+  gpipeline.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+  // DepthStencilState
+
+  gpipeline.DepthStencilState.DepthEnable = false;
+  gpipeline.DepthStencilState.StencilEnable = false;
+
+  // InputLayout
+
+  gpipeline.InputLayout.pInputElementDescs = inputLayout;  // レイアウト先頭アドレス
+  gpipeline.InputLayout.NumElements = _countof(inputLayout);
+
+  // IBStripCutValue
+  // D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED : トライアングルストリップ時に切り離さない
+  gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+
+  // PrimitiveTopologyType
+  gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
+  // NumRenderTargets
+  gpipeline.NumRenderTargets = 1;
+
+  // RTVFormats *
+  gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;  // 0～1 に正規化されたRGBA
+
+  // DSVFormat
+  // default
+
+  // SampleDesc
+
+  gpipeline.SampleDesc.Count = 1;    // 1 sample per pixel (disable anti-aliasing)
+  gpipeline.SampleDesc.Quality = 0;  // lowest quality
+
+  ////////////////////
+  // Root Signature //
+  ////////////////////
+
+  ID3D12RootSignature* rootsignature = nullptr;
+  D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
+  // D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : 頂点情報 (入力アセンブラ) がある
+  rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+  ID3DBlob* rootSigBlob = nullptr;
+  result = D3D12SerializeRootSignature(&rootSignatureDesc,              // ルートシグネチャ設定
+                                       D3D_ROOT_SIGNATURE_VERSION_1_0,  // ルートシグネチャバージョン
+                                       &rootSigBlob, &errorBlob);
+  result = _dev->CreateRootSignature(0,  // nodemask
+                                     rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(),
+                                     IID_PPV_ARGS(&rootsignature));
+  rootSigBlob->Release();
+
+  gpipeline.pRootSignature = rootsignature;
+
+  //////////////////////////////
+  // Create Graphics Pipeline //
+  //////////////////////////////
+
+  ID3D12PipelineState* _pipelinestate = nullptr;
+  result = _dev->CreateGraphicsPipelineState(&gpipeline, IID_PPV_ARGS(&_pipelinestate));
+
   //////////////////
   // message loop //
   //////////////////
