@@ -241,9 +241,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   ////////////
 
   DirectX::XMFLOAT3 vertices[] = {
-      {-1.0f, -1.0f, 0.0f},  // 左下
-      {-1.0f, 1.0f, 0.0f},   // 左上
-      {1.0f, -1.0f, 0.0f},   // 右下
+      {-0.5f, -0.7f, 0.0f},  // 左下
+      {0.0f, 0.7f, 0.0f},    // 左上
+      {0.5f, -0.7f, 0.0f},   // 右下
   };
 
   D3D12_HEAP_PROPERTIES heapprop = {};
@@ -494,8 +494,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     _cmdList->ResourceBarrier(1, &BarrierDesc);
 
-    if (_pipelinestate == nullptr) exit(EXIT_FAILURE);
+    if (_pipelinestate != nullptr) {
     _cmdList->SetPipelineState(_pipelinestate);
+    }
 
     //レンダーターゲットを指定
     auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
@@ -538,8 +539,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       }
     }
 
-    _cmdAllocator->Reset();                   //キューをクリア
-    _cmdList->Reset(_cmdAllocator, nullptr);  //再びコマンドリストをためる準備
+    _cmdAllocator->Reset();                          //キューをクリア
+    _cmdList->Reset(_cmdAllocator, _pipelinestate);  //再びコマンドリストをためる準備
 
     //フリップ
     _swapchain->Present(1, 0);
