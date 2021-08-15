@@ -155,7 +155,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
   }
   if (_dev == nullptr) {
-    std::exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
   // Create command list and command allocator
@@ -271,7 +271,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
   // copy vertices data to vertex buffer
   DirectX::XMFLOAT3* vertMap = nullptr;
-  vertBuff->Map(0, nullptr, (void**)&vertMap);
+  result = vertBuff->Map(0, nullptr, (void**)&vertMap);
+  try {
+    if (FAILED(result)) {
+      throw std::runtime_error("Failed to map vertex buffer");
+    }
+  } catch (const std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  } catch (const std::exception& e) {
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
+  } catch (...) {
+    return EXIT_FAILURE;
+  }
   std::copy(std::begin(vertices), std::end(vertices), vertMap);
   vertBuff->Unmap(0, nullptr);
 
@@ -298,7 +311,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       errstr += "\n";
       OutputDebugStringA(errstr.c_str());
     }
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
   result = D3DCompileFromFile(L"BasicPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "BasicPS", "ps_5_0",
                               D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION, 0, &_psBlob, &errorBlob);
@@ -312,7 +325,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       errstr += "\n";
       OutputDebugStringA(errstr.c_str());
     }
-    exit(EXIT_FAILURE);
+    return EXIT_FAILURE;
   }
 
   // Vertex Layout
@@ -495,7 +508,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     _cmdList->ResourceBarrier(1, &BarrierDesc);
 
     if (_pipelinestate != nullptr) {
-    _cmdList->SetPipelineState(_pipelinestate);
+      _cmdList->SetPipelineState(_pipelinestate);
     }
 
     //レンダーターゲットを指定
