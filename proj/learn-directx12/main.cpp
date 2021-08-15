@@ -494,6 +494,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
     _cmdList->ResourceBarrier(1, &BarrierDesc);
 
+    if (_pipelinestate == nullptr) exit(EXIT_FAILURE);
     _cmdList->SetPipelineState(_pipelinestate);
 
     //レンダーターゲットを指定
