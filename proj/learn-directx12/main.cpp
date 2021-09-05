@@ -554,6 +554,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  //テクスチャ用(ピクセルシェーダから見る用)
         nullptr, IID_PPV_ARGS(&texbuff));
 
+    result = texbuff->WriteToSubresource(0,
+                                         nullptr,                              // 全領域へコピー
+                                         texturedata.data(),                   // 元データアドレス
+                                         sizeof(TexRGBA) * 256,                // 1 ラインサイズ
+                                         sizeof(TexRGBA) * texturedata.size()  // 全サイズ
+    );
+
     //////////////////
     // message loop //
     //////////////////
