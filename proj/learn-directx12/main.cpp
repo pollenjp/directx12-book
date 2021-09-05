@@ -357,6 +357,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // Vertex Layout
     D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
+        // position
         {
             "POSITION",                                  // SemanticName
             0,                                           // SemanticIndex
@@ -366,6 +367,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,  // InputSlotClass
             0                                            // InstanceDataStepRate
         },
+        // uv
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 
     ///////////////////////
