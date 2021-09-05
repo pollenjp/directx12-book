@@ -509,6 +509,51 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     scissorrect.right = scissorrect.left + window_width;   // 切り抜き右座標
     scissorrect.bottom = scissorrect.top + window_height;  // 切り抜き下座標
 
+    ////////////////////
+    // Texture Buffer //
+    ////////////////////
+
+    // ノイズテクスチャの作成
+    struct TexRGBA {
+      unsigned char R, G, B, A;
+    };
+    std::vector<TexRGBA> texturedata(256 * 256);
+
+    for (auto& rgba : texturedata) {
+      rgba.R = rand() % 256;
+      rgba.G = rand() % 256;
+      rgba.B = rand() % 256;
+      rgba.A = 255;  // アルファは1.0という事にします。
+    }
+
+    // WriteToSubresourceで転送する用のヒープ設定
+    D3D12_HEAP_PROPERTIES texHeapProp = {};
+    texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;  //特殊な設定なのでdefaultでもuploadでもなく
+    texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;  //ライトバックで
+    texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;           //転送がL0つまりCPU側から直で
+    texHeapProp.CreationNodeMask = 0;                                  //単一アダプタのため0
+    texHeapProp.VisibleNodeMask = 0;                                   //単一アダプタのため0
+
+    D3D12_RESOURCE_DESC resDesc = {};
+    resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;  // RGBA フォーマット
+    resDesc.Width = 256;                          // 幅
+    resDesc.Height = 256;                         // 高さ
+    resDesc.DepthOrArraySize = 1;                 // 2D で配列でもないので１
+    resDesc.SampleDesc.Count = 1;    // 通常テクスチャなのでアンチエイリアシングしない
+    resDesc.SampleDesc.Quality = 0;  // クオリティは最低
+    resDesc.MipLevels = 1;           // ミップマップしないのでミップ数は1 つ
+    resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;  // 2D テクスチャ用
+    resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;           // レイアウトは決定しない
+    resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;                // 特にフラグなし
+
+    ID3D12Resource* texbuff = nullptr;
+    result = _dev->CreateCommittedResource(
+        &texHeapProp,
+        D3D12_HEAP_FLAG_NONE,  //特に指定なし
+        &resDesc,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  //テクスチャ用(ピクセルシェーダから見る用)
+        nullptr, IID_PPV_ARGS(&texbuff));
+
     //////////////////
     // message loop //
     //////////////////
