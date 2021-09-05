@@ -552,7 +552,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     _cmdList->IASetVertexBuffers(0, 1, &vbView);
     _cmdList->IASetIndexBuffer(&ibView);
 
-    _cmdList->DrawInstanced(3, 1, 0, 0);
     _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
     BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
