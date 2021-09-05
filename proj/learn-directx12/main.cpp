@@ -18,6 +18,11 @@
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
 
+struct Vertex {
+  DirectX::XMFLOAT3 pos;  // x,y,z coordinate
+  DirectX::XMFLOAT2 uv;   // uv coordinate
+};
+
 /**
  * @brief コンソール画面にフォーマット付き文字列を表示
  * @param format フォーマット（%d とか%f とかの）
@@ -240,11 +245,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
   // Shader //
   ////////////
 
-  DirectX::XMFLOAT3 vertices[] = {
-      {-0.4f, -0.7f, 0.0f},  // 左下
-      {-0.4f, 0.7f, 0.0f},   // 左上
-      {0.4f, -0.7f, 0.0f},   // 右下
-      {0.4f, 0.7f, 0.0f},    // 右上
+  Vertex vertices[] = {
+      {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // 左下
+      {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // 左上
+      {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // 右下
+      {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // 右上
   };
 
   D3D12_HEAP_PROPERTIES heapprop = {};
@@ -294,7 +299,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
 
   // copy vertices data to vertex buffer
-  DirectX::XMFLOAT3* vertMap = nullptr;
+  Vertex* vertMap = nullptr;
   result = vertBuff->Map(0, nullptr, (void**)&vertMap);
   try {
     if (FAILED(result)) {
