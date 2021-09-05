@@ -561,6 +561,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                          sizeof(TexRGBA) * texturedata.size()  // 全サイズ
     );
 
+    // texture's descriptor heap
+    ID3D12DescriptorHeap* texDescHeap = nullptr;
+    D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
+    descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;  // シェーダーから見えるように
+    descHeapDesc.NodeMask = 0;                                       // マスクは 0
+    descHeapDesc.NumDescriptors = 1;                                 // ビューは今のところ1 つだけ
+    descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;      // シェーダーリソースビュー用
+    result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&texDescHeap));
+
     //////////////////
     // message loop //
     //////////////////
