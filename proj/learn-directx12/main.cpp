@@ -1,4 +1,5 @@
 #include <DirectXMath.h>
+#include <DirectXTex.h>
 #include <Windows.h>
 #include <d3d12.h>
 #include <d3dcompiler.h>
@@ -14,6 +15,7 @@
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+#pragma comment(lib, "DirectXTex.lib")
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
