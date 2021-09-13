@@ -548,18 +548,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Texture Buffer //
     ////////////////////
 
+    // WICテクスチャのロード
+    DirectX::TexMetadata metadata = {};
+    DirectX::ScratchImage scratchImg = {};
+    result = DirectX::LoadFromWICFile(L"img/textest.png", DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
+    auto img = scratchImg.GetImage(0, 0, 0);  // 生データ抽出
     // ノイズテクスチャの作成
-    struct TexRGBA {
-      unsigned char R, G, B, A;
-    };
-    std::vector<TexRGBA> texturedata(256 * 256);
+    // struct TexRGBA {
+    //   unsigned char R, G, B, A;
+    // };
+    // std::vector<TexRGBA> texturedata(256 * 256);
 
-    for (auto& rgba : texturedata) {
-      rgba.R = rand() % 256;
-      rgba.G = rand() % 256;
-      rgba.B = rand() % 256;
-      rgba.A = 255;  // アルファは1.0という事にします。
-    }
+    // for (auto& rgba : texturedata) {
+    //   rgba.R = rand() % 256;
+    //   rgba.G = rand() % 256;
+    //   rgba.B = rand() % 256;
+    //   rgba.A = 255;  // アルファは1.0という事にします。
+    // }
 
     // WriteToSubresourceで転送する用のヒープ設定
     D3D12_HEAP_PROPERTIES texHeapProp = {};
@@ -570,16 +575,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     texHeapProp.VisibleNodeMask = 0;                                   //単一アダプタのため0
 
     D3D12_RESOURCE_DESC resDesc = {};
-    resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;  // RGBA フォーマット
-    resDesc.Width = 256;                          // 幅
-    resDesc.Height = 256;                         // 高さ
-    resDesc.DepthOrArraySize = 1;                 // 2D で配列でもないので１
-    resDesc.SampleDesc.Count = 1;    // 通常テクスチャなのでアンチエイリアシングしない
+    resDesc.Format = metadata.format;                     // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBAフォーマット
+    resDesc.Width = static_cast<UINT>(metadata.width);    // 幅
+    resDesc.Height = static_cast<UINT>(metadata.height);  // 高さ
+    resDesc.DepthOrArraySize = static_cast<uint16_t>(metadata.arraySize);  // 2Dで配列でもないので１
+    resDesc.SampleDesc.Count = 1;    // 通常テクスチャなのでアンチェリしない
     resDesc.SampleDesc.Quality = 0;  // クオリティは最低
-    resDesc.MipLevels = 1;           // ミップマップしないのでミップ数は1 つ
-    resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;  // 2D テクスチャ用
-    resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;           // レイアウトは決定しない
-    resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;                // 特にフラグなし
+    resDesc.MipLevels = static_cast<uint16_t>(metadata.mipLevels);  // ミップマップしないのでミップ数は１つ
+    resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);  // 2Dテクスチャ用
+    resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;  // レイアウトについては決定しない
+    resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;       // とくにフラグなし
 
     ID3D12Resource* texbuff = nullptr;
     result = _dev->CreateCommittedResource(
@@ -589,11 +594,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,  //テクスチャ用(ピクセルシェーダから見る用)
         nullptr, IID_PPV_ARGS(&texbuff));
 
+    // result = texbuff->WriteToSubresource(0,
+    //                                      nullptr,                              // 全領域へコピー
+    //                                      texturedata.data(),                   // 元データアドレス
+    //                                      sizeof(TexRGBA) * 256,                // 1 ラインサイズ
+    //                                      sizeof(TexRGBA) * texturedata.size()  // 全サイズ
+    // );
     result = texbuff->WriteToSubresource(0,
-                                         nullptr,                              // 全領域へコピー
-                                         texturedata.data(),                   // 元データアドレス
-                                         sizeof(TexRGBA) * 256,                // 1 ラインサイズ
-                                         sizeof(TexRGBA) * texturedata.size()  // 全サイズ
+                                         nullptr,                            //全領域へコピー
+                                         img->pixels,                        //元データアドレス
+                                         static_cast<UINT>(img->rowPitch),   // 1ラインサイズ
+                                         static_cast<UINT>(img->slicePitch)  //全サイズ
     );
 
     // texture's descriptor heap
