@@ -617,7 +617,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&texDescHeap));
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;  // RGBA（0.0f ～ 1.0f に正規化）
+    srvDesc.Format = metadata.format;  // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
     srvDesc.Texture2D.MipLevels = 1;                        // ミップマップは使用しないので1
