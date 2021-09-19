@@ -221,10 +221,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     DXGI_SWAP_CHAIN_DESC swcDesc = {};
     result = _swapchain->GetDesc(&swcDesc);
     std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
+
+    // Create Render Target View
+
+    // SRGB レンダーターゲットビュー設定
+    D3D12_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+    rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;  // ガンマ補正あり (sRGB)
+    rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+
+    // get address
     D3D12_CPU_DESCRIPTOR_HANDLE handle = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
+
     for (size_t i = 0; i < swcDesc.BufferCount; ++i) {
       result = _swapchain->GetBuffer(static_cast<UINT>(i), IID_PPV_ARGS(&_backBuffers[i]));
-      _dev->CreateRenderTargetView(_backBuffers[i], nullptr, handle);
+      _dev->CreateRenderTargetView(_backBuffers[i], &rtvDesc, handle);
       handle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
