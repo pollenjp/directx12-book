@@ -254,9 +254,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ID3D12Fence* _fence = nullptr;
     UINT64 _fenceVal = 0;
     result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
-    // if (result != S_OK) {
-    //   std::exit(EXIT_FAILURE);
-    // }
+    if (result != S_OK) {
+      throw std::runtime_error("Failed to create fence");
+    }
 
     /////////////////
     // Show Window //
@@ -628,18 +628,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                            D3D12_RESOURCE_STATE_COPY_DEST,  // コピー先
                                            nullptr, IID_PPV_ARGS(&texbuff));
 
-    uint8_t* mapforImg = nullptr;                              // image->pixelsと同じ型にする
-    result = uploadbuff->Map(0, nullptr, (void**)&mapforImg);  // マップ
-    auto srcAddress = img->pixels;
-    auto rowPitch = AlignmentedSize(img->rowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
-    for (int y = 0; y < img->height; ++y) {
-      std::copy_n(srcAddress, rowPitch,
-                  mapforImg);  // コピー
-      // 1行ごとの辻褄を合わせてやる
-      srcAddress += img->rowPitch;
-      mapforImg += rowPitch;
+    {
+      uint8_t* mapforImg = nullptr;                              // image->pixelsと同じ型にする
+      result = uploadbuff->Map(0, nullptr, (void**)&mapforImg);  // マップ
+      auto srcAddress = img->pixels;
+      auto rowPitch = AlignmentedSize(img->rowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+      for (int y = 0; y < img->height; ++y) {
+        std::copy_n(srcAddress, rowPitch, mapforImg);  // コピー
+        // 1行ごとの辻褄を合わせてやる
+        srcAddress += img->rowPitch;
+        mapforImg += rowPitch;
+      }
+      uploadbuff->Unmap(0, nullptr);  // アンマップ
     }
-    uploadbuff->Unmap(0, nullptr);  // アンマップ
 
     D3D12_TEXTURE_COPY_LOCATION src = {}, dst = {};
     dst.pResource = texbuff;
