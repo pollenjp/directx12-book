@@ -472,7 +472,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     gpipeline.NumRenderTargets = 1;
 
     // RTVFormats *
-    gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;  // 0～1 に正規化されたRGBA
+    gpipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;  // 0～1 に正規化されたRGBA (SRGB)
 
     // DSVFormat
     // default
