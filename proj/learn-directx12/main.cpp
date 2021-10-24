@@ -83,6 +83,11 @@ int main() {
 #else
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 #endif
+  HRESULT result;
+  // 以下を書いておかないとCOMが旨く動かずWICが正常に動作しないことがあります。
+  // (書かなくても動くときもあります)
+  // TODO: ???
+  // result = CoInitializeEx(0, COINIT_MULTITHREADED);
 
   try {
     DebugOutputFormatString("Show window test.");
@@ -128,7 +133,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // アダプターを明示的に指定する.
 
     // DXGI (DirectX Graphics Infrastructure)
-    HRESULT result = S_OK;
+    result = S_OK;
 #ifdef _DEBUG
     if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
       // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
@@ -477,22 +482,35 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : 頂点情報 (入力アセンブラ) がある
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-    // descriptor range
-    D3D12_DESCRIPTOR_RANGE descTblRange = {};
-    descTblRange.NumDescriptors = 1;                           // テクスチャ1 つ
-    descTblRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;  // 種別はテクスチャ
-    descTblRange.BaseShaderRegister = 0;                       // 0 番スロットから
-    descTblRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_ROOT_PARAMETER rootparam[2] = {};
+    {
+      // descriptor range
+      D3D12_DESCRIPTOR_RANGE descriptor_range[2] = {};  // テクスチャと定数の２つ
 
-    // root parameter
-    D3D12_ROOT_PARAMETER rootparam = {};
-    rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;   // ピクセルシェーダーから見える
-    rootparam.DescriptorTable.pDescriptorRanges = &descTblRange;  // ディスクリプタレンジのアドレス
-    rootparam.DescriptorTable.NumDescriptorRanges = 1;            // ディスクリプタレンジ数
+      descriptor_range[0].NumDescriptors = 1;                           // テクスチャひとつ
+      descriptor_range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;  // 種別はテクスチャ
+      descriptor_range[0].BaseShaderRegister = 0;                       // 0番スロットから
+      descriptor_range[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    rootSignatureDesc.pParameters = &rootparam;
-    rootSignatureDesc.NumParameters = 1;
+      descriptor_range[1].NumDescriptors = 1;                           // 定数ひとつ
+      descriptor_range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;  // 種別は定数
+      descriptor_range[1].BaseShaderRegister = 0;                       // 0番スロットから
+      descriptor_range[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+      // root parameter
+      rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      rootparam[0].DescriptorTable.pDescriptorRanges = &descriptor_range[0];
+      rootparam[0].DescriptorTable.NumDescriptorRanges = 1;           // ディスクリプタレンジ数
+      rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
+
+      rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      rootparam[1].DescriptorTable.pDescriptorRanges = &descriptor_range[1];
+      rootparam[1].DescriptorTable.NumDescriptorRanges = 1;            // ディスクリプタレンジ数
+      rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;  // 頂点シェーダーから見える
+    }
+
+    rootSignatureDesc.pParameters = &rootparam[0];  // ルートパラメータの先頭アドレス
+    rootSignatureDesc.NumParameters = 2;            // ルートパラメータ数
 
     // sampler
     D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
@@ -679,12 +697,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->Reset(_cmdAllocator, nullptr);
     }
 
+    DirectX::XMMATRIX* mapMatrix;  // マップ先を示すポインター
     ID3D12Resource* constBuff = nullptr;
     {
+      DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(DirectX::XMMATRIX) + 0xff) & ~0xff);
+      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
+      result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // マップ
+      *mapMatrix = matrix;                                      // 行列の内容をコピー
     }
 
     // texture's descriptor heap
@@ -696,7 +718,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // SRV (Shader Resouce View), CBV (Constant Buffer View)
     descHeapDesc.NumDescriptors = 2;
     // SRV (Shader Resouce View), CBV (Constant Buffer View), UAV (Unordered Access View)
-    descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;  //
+    descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
     result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&basic_descriptor_heap));
 
@@ -781,9 +803,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       _cmdList->SetGraphicsRootSignature(rootsignature);
       _cmdList->SetDescriptorHeaps(1, &basic_descriptor_heap);
+
       _cmdList->SetGraphicsRootDescriptorTable(
-          0,  // ルートパラメーターインデックス
+          0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
+
+      auto heapHandle = basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart();
+      heapHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+      _cmdList->SetGraphicsRootDescriptorTable(1,  // root parameter index for CBV
+                                               heapHandle);
 
       _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
