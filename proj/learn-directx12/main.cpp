@@ -482,7 +482,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : 頂点情報 (入力アセンブラ) がある
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-    D3D12_ROOT_PARAMETER rootparam[2] = {};
+    D3D12_ROOT_PARAMETER rootparam = {};
     {
       // descriptor range
       D3D12_DESCRIPTOR_RANGE descriptor_range[2] = {};  // テクスチャと定数の２つ
@@ -498,19 +498,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       descriptor_range[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
       // root parameter
-      rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      rootparam[0].DescriptorTable.pDescriptorRanges = &descriptor_range[0];
-      rootparam[0].DescriptorTable.NumDescriptorRanges = 1;           // ディスクリプタレンジ数
-      rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
-
-      rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      rootparam[1].DescriptorTable.pDescriptorRanges = &descriptor_range[1];
-      rootparam[1].DescriptorTable.NumDescriptorRanges = 1;            // ディスクリプタレンジ数
-      rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;  // 頂点シェーダーから見える
+      rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      rootparam.DescriptorTable.pDescriptorRanges = &descriptor_range[0];
+      rootparam.DescriptorTable.NumDescriptorRanges = 2;         // 2つ分を一回で指定
+      rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;  // pixel shader, vertex shader can be used.
     }
 
-    rootSignatureDesc.pParameters = &rootparam[0];  // ルートパラメータの先頭アドレス
-    rootSignatureDesc.NumParameters = 2;            // ルートパラメータ数
+    rootSignatureDesc.pParameters = &rootparam;  // ルートパラメータの先頭アドレス
+    rootSignatureDesc.NumParameters = 1;         // ルートパラメータ数
 
     // sampler
     D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
@@ -807,11 +802,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->SetGraphicsRootDescriptorTable(
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
-
-      auto heapHandle = basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart();
-      heapHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-      _cmdList->SetGraphicsRootDescriptorTable(1,  // root parameter index for CBV
-                                               heapHandle);
 
       _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
