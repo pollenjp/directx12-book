@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <d3d12.h>
 #include <d3dcompiler.h>
+#include <d3dx12.h>
 #include <dxgi1_6.h>
 #include <tchar.h>
 
@@ -275,27 +276,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // 右上
     };
 
-    D3D12_HEAP_PROPERTIES heapprop = {};
-    heapprop.Type = D3D12_HEAP_TYPE_UPLOAD;
-    heapprop.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-    heapprop.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-
-    D3D12_RESOURCE_DESC resdesc = {};
-    resdesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    resdesc.Width = sizeof(vertices);
-    resdesc.Height = 1;
-    resdesc.DepthOrArraySize = 1;
-    resdesc.MipLevels = 1;
-    resdesc.Format = DXGI_FORMAT_UNKNOWN;
-    resdesc.SampleDesc.Count = 1;
-    resdesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-    resdesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-
     ID3D12Resource* vertBuff = nullptr;
-    result = _dev->CreateCommittedResource(&heapprop,  // heap description
-                                           D3D12_HEAP_FLAG_NONE,
-                                           &resdesc,  // resource description
-                                           D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
+    auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
+    result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                                           nullptr, IID_PPV_ARGS(&vertBuff));
 
     // copy vertices data to vertex buffer
     Vertex* vertMap = nullptr;
@@ -322,8 +307,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     };
 
     ID3D12Resource* idxBuff = nullptr;
-    // 設定は、バッファのサイズ以外頂点バッファの設定を使いまわしてOK
     resdesc.Width = sizeof(indices);
+    heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
     result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
                                            nullptr, IID_PPV_ARGS(&idxBuff));
 
