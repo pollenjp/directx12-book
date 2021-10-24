@@ -679,25 +679,54 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->Reset(_cmdAllocator, nullptr);
     }
 
+    ID3D12Resource* constBuff = nullptr;
+    {
+      auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(DirectX::XMMATRIX) + 0xff) & ~0xff);
+      result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
+    }
+
     // texture's descriptor heap
-    ID3D12DescriptorHeap* texDescHeap = nullptr;
+    ID3D12DescriptorHeap* basic_descriptor_heap = nullptr;
     D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
     descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;  // シェーダーから見えるように
     descHeapDesc.NodeMask = 0;                                       // マスクは 0
-    descHeapDesc.NumDescriptors = 1;                                 // ビューは今のところ1 つだけ
-    descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;      // シェーダーリソースビュー用
-    result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&texDescHeap));
 
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = metadata.format;  // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
-    srvDesc.Texture2D.MipLevels = 1;                        // ミップマップは使用しないので1
+    // SRV (Shader Resouce View), CBV (Constant Buffer View)
+    descHeapDesc.NumDescriptors = 2;
+    // SRV (Shader Resouce View), CBV (Constant Buffer View), UAV (Unordered Access View)
+    descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;  //
 
-    _dev->CreateShaderResourceView(texbuff,   // ビューと関連付けるバッファー
-                                   &srvDesc,  // 先ほど設定したテクスチャ設定情報
-                                   texDescHeap->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
-    );
+    result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&basic_descriptor_heap));
+
+    // デスクリプタの先頭ハンドルを取得しておく
+    auto basicHeapHandle = basic_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
+
+    {
+      D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+      srvDesc.Format = metadata.format;  // DXGI_FORMAT_R8G8B8A8_UNORM;//RGBA(0.0f～1.0fに正規化)
+      srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+      srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
+      srvDesc.Texture2D.MipLevels = 1;                        // ミップマップは使用しないので1
+
+      // シェーダリソースビューの作成
+      _dev->CreateShaderResourceView(
+          texbuff,   // ビューと関連付けるバッファー
+          &srvDesc,  // 先ほど設定したテクスチャ設定情報
+          basic_descriptor_heap->GetCPUDescriptorHandleForHeapStart()  // ヒープのどこに割り当てるか
+      );
+    }
+
+    basicHeapHandle.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    {
+      D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+      cbvDesc.BufferLocation = constBuff->GetGPUVirtualAddress();
+      cbvDesc.SizeInBytes = static_cast<UINT>(constBuff->GetDesc().Width);
+      // 定数バッファビューの作成
+      _dev->CreateConstantBufferView(&cbvDesc, basicHeapHandle);
+    }
 
     //////////////////
     // message loop //
@@ -751,9 +780,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->IASetIndexBuffer(&ibView);
 
       _cmdList->SetGraphicsRootSignature(rootsignature);
-      _cmdList->SetDescriptorHeaps(1, &texDescHeap);
-      _cmdList->SetGraphicsRootDescriptorTable(0,  // ルートパラメーターインデックス
-                                               texDescHeap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
+      _cmdList->SetDescriptorHeaps(1, &basic_descriptor_heap);
+      _cmdList->SetGraphicsRootDescriptorTable(
+          0,  // ルートパラメーターインデックス
+          basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
       _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
