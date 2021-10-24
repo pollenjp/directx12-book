@@ -559,60 +559,61 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     result = DirectX::LoadFromWICFile(L"img/textest.png", DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
     auto img = scratchImg.GetImage(0, 0, 0);  // 生データ抽出
 
-    //まずは中間バッファとしてのUploadヒープ設定
-    D3D12_HEAP_PROPERTIES uploadHeapProp = {};
-    uploadHeapProp.Type = D3D12_HEAP_TYPE_UPLOAD;  // Upload用
-    uploadHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-    uploadHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-    uploadHeapProp.CreationNodeMask = 0;  //単一アダプタのため0
-    uploadHeapProp.VisibleNodeMask = 0;   //単一アダプタのため0
+    ID3D12Resource* uploadbuff = nullptr;  // 中間バッファ作成
+    ID3D12Resource* texbuff = nullptr;     // テクスチャバッファ作成
+    {
+      // まずは中間バッファとしてのUploadヒープ設定
+      D3D12_HEAP_PROPERTIES upload_heap_property = {};
+      upload_heap_property.Type = D3D12_HEAP_TYPE_UPLOAD;  // Upload用
+      upload_heap_property.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+      upload_heap_property.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+      upload_heap_property.CreationNodeMask = 0;  //単一アダプタのため0
+      upload_heap_property.VisibleNodeMask = 0;   //単一アダプタのため0
 
-    D3D12_RESOURCE_DESC resDesc = {};
-    resDesc.Format = DXGI_FORMAT_UNKNOWN;
-    resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;  //単なるバッファとして
-    auto pixelsize = scratchImg.GetPixelsSize();
-    resDesc.Width = AlignmentedSize(img->rowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT) * img->height;  //データサイズ
+      D3D12_RESOURCE_DESC resource_description = {};
+      resource_description.Format = DXGI_FORMAT_UNKNOWN;
+      resource_description.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;  //単なるバッファとして
+      auto pixelsize = scratchImg.GetPixelsSize();
+      resource_description.Width =
+          AlignmentedSize(img->rowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT) * img->height;  //データサイズ
 
-    resDesc.Height = 1;            //
-    resDesc.DepthOrArraySize = 1;  //
-    resDesc.MipLevels = 1;
-    resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;  //連続したデータですよ
-    resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;         //とくにフラグなし
-    resDesc.SampleDesc.Count = 1;                     //通常テクスチャなのでアンチェリしない
-    resDesc.SampleDesc.Quality = 0;                   //
+      resource_description.Height = 1;            //
+      resource_description.DepthOrArraySize = 1;  //
+      resource_description.MipLevels = 1;
+      resource_description.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;  //連続したデータですよ
+      resource_description.Flags = D3D12_RESOURCE_FLAG_NONE;         //とくにフラグなし
+      resource_description.SampleDesc.Count = 1;    //通常テクスチャなのでアンチェリしない
+      resource_description.SampleDesc.Quality = 0;  //
 
-    //中間バッファ作成
-    ID3D12Resource* uploadbuff = nullptr;
-    result = _dev->CreateCommittedResource(&uploadHeapProp,
-                                           D3D12_HEAP_FLAG_NONE,  //特に指定なし
-                                           &resDesc,
-                                           D3D12_RESOURCE_STATE_GENERIC_READ,  // CPUから書き込み可能
-                                           nullptr, IID_PPV_ARGS(&uploadbuff));
+      result = _dev->CreateCommittedResource(&upload_heap_property,
+                                             D3D12_HEAP_FLAG_NONE,  //特に指定なし
+                                             &resource_description,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ,  // CPUから書き込み可能
+                                             nullptr, IID_PPV_ARGS(&uploadbuff));
 
-    //次にテクスチャのためのヒープ設定
-    D3D12_HEAP_PROPERTIES texHeapProp = {};
-    texHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;  //テクスチャ用
-    texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-    texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-    texHeapProp.CreationNodeMask = 0;  // 単一アダプタのため0
-    texHeapProp.VisibleNodeMask = 0;   // 単一アダプタのため0
+      //次にテクスチャのためのヒープ設定
+      D3D12_HEAP_PROPERTIES texHeapProp = {};
+      texHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;  //テクスチャ用
+      texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+      texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+      texHeapProp.CreationNodeMask = 0;  // 単一アダプタのため0
+      texHeapProp.VisibleNodeMask = 0;   // 単一アダプタのため0
 
-    //リソース設定(変数は使いまわし)
-    resDesc.Format = metadata.format;
-    resDesc.Width = static_cast<UINT>(metadata.width);                   // 幅
-    resDesc.Height = static_cast<UINT>(metadata.height);                 // 高さ
-    resDesc.DepthOrArraySize = static_cast<UINT16>(metadata.arraySize);  // 2Dで配列でもないので１
-    resDesc.MipLevels = static_cast<UINT16>(metadata.mipLevels);  // ミップマップしないのでミップ数は１つ
-    resDesc.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);  // 2Dテクスチャ用
-    resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+      //リソース設定(変数は使いまわし)
+      resource_description.Format = metadata.format;
+      resource_description.Width = static_cast<UINT>(metadata.width);                   // 幅
+      resource_description.Height = static_cast<UINT>(metadata.height);                 // 高さ
+      resource_description.DepthOrArraySize = static_cast<UINT16>(metadata.arraySize);  // 2Dで配列でもないので１
+      resource_description.MipLevels = static_cast<UINT16>(metadata.mipLevels);  // ミップマップしないのでミップ数は１つ
+      resource_description.Dimension = static_cast<D3D12_RESOURCE_DIMENSION>(metadata.dimension);  // 2Dテクスチャ用
+      resource_description.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
-    //テクスチャバッファ作成
-    ID3D12Resource* texbuff = nullptr;
-    result = _dev->CreateCommittedResource(&texHeapProp,
-                                           D3D12_HEAP_FLAG_NONE,  // 特に指定なし
-                                           &resDesc,
-                                           D3D12_RESOURCE_STATE_COPY_DEST,  // コピー先
-                                           nullptr, IID_PPV_ARGS(&texbuff));
+      result = _dev->CreateCommittedResource(&texHeapProp,
+                                             D3D12_HEAP_FLAG_NONE,  // 特に指定なし
+                                             &resource_description,
+                                             D3D12_RESOURCE_STATE_COPY_DEST,  // コピー先
+                                             nullptr, IID_PPV_ARGS(&texbuff));
+    }
 
     {
       uint8_t* mapforImg = nullptr;                              // image->pixelsと同じ型にする
