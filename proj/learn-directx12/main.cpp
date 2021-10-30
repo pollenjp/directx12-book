@@ -706,6 +706,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       matrix.r[0].m128_f32[0] = 2.0f / window_width;
       matrix.r[1].m128_f32[1] = -2.0f / window_height;
 
+      // Translation: (xmin, xmax) = (-1, 1), (xmin, xmax) = (-1, 1)
+      // In DirectX, window's bottom left is (-1, 1) and top right is (1, 1)
+      matrix.r[3].m128_f32[0] = -1.0f;
+      matrix.r[3].m128_f32[1] = 1.0f;
+
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
       auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
