@@ -274,11 +274,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Shader //
     ////////////
 
+    //! pairs of (vertex location, texture location) ?
+    //! `mapMatrix` の箇所でスケールするためここでWindow上のピクセル座標値を指定
     Vertex vertices[] = {
-        {{-0.4f, -0.7f, 0.0f}, {0.0f, 1.0f}},  // 左下
-        {{-0.4f, 0.7f, 0.0f}, {0.0f, 0.0f}},   // 左上
-        {{0.4f, -0.7f, 0.0f}, {1.0f, 1.0f}},   // 右下
-        {{0.4f, 0.7f, 0.0f}, {1.0f, 0.0f}},    // 右上
+        {{0.0f, 100.0f, 0.0f}, {0.0f, 1.0f}},    // 左下
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},      // 左上
+        {{100.0f, 100.0f, 0.0f}, {1.0f, 1.0f}},  // 右下
+        {{100.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},    // 右上
     };
 
     ID3D12Resource* vertBuff = nullptr;
@@ -700,6 +702,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       // sec6.3 Homography
 
       // Scaling & Reflection
+      // scaling to (xmin, xmax) = (0, 2), (xmin, xmax) = (-2, 0)
       matrix.r[0].m128_f32[0] = 2.0f / window_width;
       matrix.r[1].m128_f32[1] = -2.0f / window_height;
 
