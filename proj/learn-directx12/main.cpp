@@ -696,11 +696,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ID3D12Resource* constBuff = nullptr;
     {
       DirectX::XMMATRIX matrix = DirectX::XMMatrixIdentity();
+
+      // sec6.3 Homography
+
+      // Scaling & Reflection
+      matrix.r[0].m128_f32[0] = 2.0f / window_width;
+      matrix.r[1].m128_f32[1] = -2.0f / window_height;
+
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
       auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
-      result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // マップ
+      result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // constant buffer に ``mapMatrix`` の内容をコピー
       *mapMatrix = matrix;                                      // 行列の内容をコピー
     }
 
