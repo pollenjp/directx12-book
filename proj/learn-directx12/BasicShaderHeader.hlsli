@@ -11,5 +11,7 @@ SamplerState smp : register(s0); // 0 番スロットに設定されたサンプ
 // 変換をまとめた構造体
 cbuffer cbuff0 : register(b0) // 定数バッファー
 {
-    matrix mat; // 変換行列
+    // matrix, float4x4, matrix<float, 4, 4> (same expression)
+    float4x4 mat; // 変換行列
+    // matrix<float, 4, 4> mat; // 変換行列
 };
