@@ -694,16 +694,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     DirectX::XMMATRIX* mapMatrix;  // マップ先を示すポインター
     ID3D12Resource* constBuff = nullptr;
+    DirectX::XMMATRIX worldMat;  // 4x4
+    DirectX::XMMATRIX viewMat;   // 4x4
+    DirectX::XMMATRIX projMat;   // 4x4
     {
       // Homography
 
-      DirectX::XMMATRIX matrix = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
+      worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
       DirectX::XMFLOAT3 eye(0, 0, -5);
       DirectX::XMFLOAT3 target(0, 0, 0);
       DirectX::XMFLOAT3 up(0, 1, 0);
-      matrix *= DirectX::XMMatrixLookAtLH(DirectX::XMLoadFloat3(&eye), DirectX::XMLoadFloat3(&target),
+      viewMat = DirectX::XMMatrixLookAtLH(DirectX::XMLoadFloat3(&eye), DirectX::XMLoadFloat3(&target),
                                           DirectX::XMLoadFloat3(&up));
-      matrix *= DirectX::XMMatrixPerspectiveFovLH(
+      projMat = DirectX::XMMatrixPerspectiveFovLH(
           DirectX::XM_PIDIV2,                                                    // 画角は90°
           static_cast<float>(window_width) / static_cast<float>(window_height),  // アスペクト比
           1.0f,                                                                  // 近いほう
@@ -711,11 +714,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       );
 
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(matrix) + 0xff) & ~0xff);
+      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(worldMat) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
       result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // constant buffer に ``mapMatrix`` の内容をコピー
-      *mapMatrix = matrix;                                      // 行列の内容をコピー
     }
 
     // texture's descriptor heap
@@ -765,6 +767,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     MSG msg = {};
     unsigned int frame = 0;
+    float angle(0.0f);
     while (true) {
       if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
@@ -774,6 +777,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       if (msg.message == WM_QUIT) {
         break;
       }
+
+      angle += 0.1f;
+      worldMat = DirectX::XMMatrixRotationY(angle);
+      *mapMatrix = worldMat * viewMat * projMat;  // row-major
 
       // DirectX処理
       //バックバッファのインデックスを取得
