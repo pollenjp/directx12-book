@@ -499,7 +499,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       // root parameter
       rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      rootparam.DescriptorTable.pDescriptorRanges = &descriptor_range[0];
+      rootparam.DescriptorTable.pDescriptorRanges = descriptor_range;
       rootparam.DescriptorTable.NumDescriptorRanges = 2;         // 2つ分を一回で指定
       rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;  // pixel shader, vertex shader can be used.
     }
