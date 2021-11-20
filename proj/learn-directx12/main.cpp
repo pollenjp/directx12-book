@@ -118,6 +118,35 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                              w.hInstance,           //呼び出しアプリケーションハンドル
                              nullptr);              //追加パラメータ
 
+    //////////////
+    // load pmd //
+    //////////////
+
+    /**
+     * @brief PMD ヘッダー構造体
+     *
+     */
+    struct PMDHeader {
+      float version;        // 例：00 00 80 3F == 1.00
+      char model_name[20];  // モデル名
+      char comment[256];    // モデルコメント
+    };
+
+    char signature[3];  // 先頭 Pmd (3 bytes)
+    PMDHeader pmdheader = {};
+    FILE* fp;
+    auto err = _wfopen_s(&fp, L"Model/初音ミク.pmd", L"rb");
+    if (fp == nullptr) {
+      wchar_t strerr[256];
+      _wcserror_s(strerr, 256, err);
+      LPCWSTR ptr = strerr;
+      MessageBox(hwnd, ptr, L"Open Error", MB_ICONERROR);
+      return -1;
+    }
+    fread(signature, sizeof(signature), 1, fp);
+    fread(&pmdheader, sizeof(pmdheader), 1, fp);
+    fclose(fp);
+
     //////////////////////////
     // Initialize DirectX12 //
     //////////////////////////
