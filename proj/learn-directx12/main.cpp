@@ -866,8 +866,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         break;
       }
 
-      // angle += 0.1f;
-      // worldMat = DirectX::XMMatrixRotationY(angle);
+      angle += 0.1f;
+      worldMat = DirectX::XMMatrixRotationY(angle);
       *mapMatrix = worldMat * viewMat * projMat;  // row-major
 
       // DirectX処理
@@ -901,7 +901,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->RSSetScissorRects(1, &scissorrect);
       _cmdList->SetGraphicsRootSignature(rootsignature);
 
-      _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+      _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
       _cmdList->IASetVertexBuffers(0, 1, &vbView);
       _cmdList->IASetIndexBuffer(&ibView);
 
