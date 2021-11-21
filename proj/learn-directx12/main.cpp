@@ -145,6 +145,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
     fread(signature, sizeof(signature), 1, fp);
     fread(&pmdheader, sizeof(pmdheader), 1, fp);
+
+    // header の直後に頂点数
+    unsigned int vertex_num(0);  // 頂点数
+    fread(&vertex_num, sizeof(vertex_num), 1, fp);
+
+    {
+      wchar_t msgbuf[256];
+      swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"vertex num is %u\n", vertex_num);
+      OutputDebugStringW(msgbuf);
+    }
+
+    constexpr size_t pmdvertex_size(38);  // 頂点 1 つあたりのサイズ
+    {
+      std::vector<unsigned char> vertices(vertex_num * pmdvertex_size);  // バッファーの確保
+      fread(vertices.data(), vertices.size(), 1, fp);                    // 読み込み
+    }
+
     fclose(fp);
 
     //////////////////////////
