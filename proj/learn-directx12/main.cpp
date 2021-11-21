@@ -21,10 +21,17 @@
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
 
-struct Vertex {
-  DirectX::XMFLOAT3 pos;  // x,y,z coordinate
-  DirectX::XMFLOAT2 uv;   // uv coordinate
+#pragma pack(push, 1)
+struct PMD_VERTEX {
+  DirectX::XMFLOAT3 pos;
+  DirectX::XMFLOAT3 normal;
+  DirectX::XMFLOAT2 uv;
+  uint16_t bone_no[2];
+  uint8_t weight;
+  uint8_t EdgeFlag;
+  uint16_t dummy;
 };
+#pragma pack(pop)
 
 /**
  * @brief アライメントに揃えたサイズを返す
@@ -156,9 +163,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       OutputDebugStringW(msgbuf);
     }
 
-    constexpr size_t pmdvertex_size(38);                               // 頂点 1 つあたりのサイズ
-    std::vector<unsigned char> vertices(vertex_num * pmdvertex_size);  // バッファーの確保
-    fread(vertices.data(), vertices.size(), 1, fp);                    // 読み込み
+    constexpr size_t pmdvertex_size(38);           // 頂点 1 つあたりのサイズ
+    std::vector<PMD_VERTEX> vertices(vertex_num);  // バッファーの確保
+    for (auto i = 0; i < vertex_num; i++) {
+      fread(&vertices[i], pmdvertex_size, 1, fp);
+    }
 
     fclose(fp);
 
@@ -325,7 +334,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                                            nullptr, IID_PPV_ARGS(&vertBuff));
 
     // copy vertices data to vertex buffer
-    unsigned char* vertMap = nullptr;
+    PMD_VERTEX* vertMap = nullptr;
     result = vertBuff->Map(0, nullptr, (void**)&vertMap);
     if (FAILED(result)) {
       throw std::runtime_error("Failed to map vertex buffer");
@@ -337,7 +346,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     D3D12_VERTEX_BUFFER_VIEW vbView = {};
     vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
     vbView.SizeInBytes = static_cast<UINT>(vertices.size() * sizeof(vertices[0]));  // 全バイト数
-    vbView.StrideInBytes = pmdvertex_size;
+    vbView.StrideInBytes = sizeof(PMD_VERTEX);                                      // 1頂点あたりのバイト数
 
     //////////////////
     // index buffer //
@@ -778,9 +787,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     {
       // Homography
 
-      worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
-      DirectX::XMFLOAT3 eye(0, 0, -5);
-      DirectX::XMFLOAT3 target(0, 0, 0);
+      // worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
+      worldMat = DirectX::XMMatrixIdentity();
+      DirectX::XMFLOAT3 eye(0, 10, -15);
+      DirectX::XMFLOAT3 target(0, 10, 0);
       DirectX::XMFLOAT3 up(0, 1, 0);
       viewMat = DirectX::XMMatrixLookAtLH(DirectX::XMLoadFloat3(&eye), DirectX::XMLoadFloat3(&target),
                                           DirectX::XMLoadFloat3(&up));
@@ -788,7 +798,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           DirectX::XM_PIDIV2,                                                    // 画角は90°
           static_cast<float>(window_width) / static_cast<float>(window_height),  // アスペクト比
           1.0f,                                                                  // 近いほう
-          10.0f                                                                  // 遠いほう
+          100.0f                                                                 // 遠いほう
       );
 
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
@@ -856,8 +866,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         break;
       }
 
-      angle += 0.1f;
-      worldMat = DirectX::XMMatrixRotationY(angle);
+      // angle += 0.1f;
+      // worldMat = DirectX::XMMatrixRotationY(angle);
       *mapMatrix = worldMat * viewMat * projMat;  // row-major
 
       // DirectX処理
@@ -883,8 +893,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           static_cast<ULONG_PTR>(bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
       _cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
 
-      //画面クリア
-      float clearColor[] = {1.0f, 1.0f, 0.0f, 1.0f};  //黄色
+      // 画面クリア
+      constexpr float clearColor[] = {1.0f, 1.0f, 1.0f, 1.0f};  // while
       _cmdList->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 
       _cmdList->RSSetViewports(1, &viewport);
@@ -902,7 +912,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
-      _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+      // _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+      _cmdList->DrawInstanced(vertex_num, 1, 0, 0);
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
