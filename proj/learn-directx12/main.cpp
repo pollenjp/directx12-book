@@ -156,11 +156,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       OutputDebugStringW(msgbuf);
     }
 
-    constexpr size_t pmdvertex_size(38);  // 頂点 1 つあたりのサイズ
-    {
-      std::vector<unsigned char> vertices(vertex_num * pmdvertex_size);  // バッファーの確保
-      fread(vertices.data(), vertices.size(), 1, fp);                    // 読み込み
-    }
+    constexpr size_t pmdvertex_size(38);                               // 頂点 1 つあたりのサイズ
+    std::vector<unsigned char> vertices(vertex_num * pmdvertex_size);  // バッファーの確保
+    fread(vertices.data(), vertices.size(), 1, fp);                    // 読み込み
 
     fclose(fp);
 
@@ -320,21 +318,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Shader //
     ////////////
 
-    Vertex vertices[] = {
-        {{-1.0f, -1.0f, 0.0f}, {0.0f, 1.0f}},  // 左下
-        {{-1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},   // 左上
-        {{1.0f, -1.0f, 0.0f}, {1.0f, 1.0f}},   // 右下
-        {{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},    // 右上
-    };
-
     ID3D12Resource* vertBuff = nullptr;
     auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
+    auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(vertices.size() * sizeof(vertices[0]));
     result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
                                            nullptr, IID_PPV_ARGS(&vertBuff));
 
     // copy vertices data to vertex buffer
-    Vertex* vertMap = nullptr;
+    unsigned char* vertMap = nullptr;
     result = vertBuff->Map(0, nullptr, (void**)&vertMap);
     if (FAILED(result)) {
       throw std::runtime_error("Failed to map vertex buffer");
@@ -345,8 +336,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // create vertex buffer view
     D3D12_VERTEX_BUFFER_VIEW vbView = {};
     vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
-    vbView.SizeInBytes = sizeof(vertices);
-    vbView.StrideInBytes = sizeof(vertices[0]);
+    vbView.SizeInBytes = static_cast<UINT>(vertices.size() * sizeof(vertices[0]));  // 全バイト数
+    vbView.StrideInBytes = pmdvertex_size;
 
     //////////////////
     // index buffer //
@@ -415,19 +406,60 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // Vertex Layout
     D3D12_INPUT_ELEMENT_DESC inputLayout[] = {
-        // position
         {
-            "POSITION",                                  // SemanticName
-            0,                                           // SemanticIndex
-            DXGI_FORMAT_R32G32B32_FLOAT,                 // Format
-            0,                                           // InputSlot
-            D3D12_APPEND_ALIGNED_ELEMENT,                // AlignedByteOffset
-            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,  // InputSlotClass
-            0                                            // InstanceDataStepRate
+            "POSITION",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,  // 4 (FLOAT) * 3 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
         },
-        // uv
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,
-         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {
+            "NORMAL",
+            0,
+            DXGI_FORMAT_R32G32B32_FLOAT,  // 4 (FLOAT) * 3 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
+        },
+        {
+            "TEXCOORD",
+            0,
+            DXGI_FORMAT_R32G32_FLOAT,  // 4 (FLOAT) * 2 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
+        },
+        {
+            "BONE_NO",
+            0,
+            DXGI_FORMAT_R16G16_UINT,  // 4 (UINT) * 2 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
+        },
+        {
+            "WEIGHT",
+            0,
+            DXGI_FORMAT_R8_UINT,  // 4 (UINT) * 1 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
+        },
+        {
+            "EDGE_FLG",
+            0,
+            DXGI_FORMAT_R8_UINT,  // 4 (UINT) * 1 (RGB) bytes
+            0,
+            D3D12_APPEND_ALIGNED_ELEMENT,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+            0,
+        },
     };
 
     ///////////////////////
