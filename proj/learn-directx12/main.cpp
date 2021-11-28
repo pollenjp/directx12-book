@@ -169,6 +169,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       fread(&vertices[i], pmdvertex_size, 1, fp);
     }
 
+    // indices
+    unsigned int indices_num;  // インデックス数
+    fread(&indices_num, sizeof(indices_num), 1, fp);
+
+    std::vector<unsigned short> indices(indices_num);
+    fread(indices.data(), indices_num * sizeof(unsigned short), 1, fp);
+
     fclose(fp);
 
     //////////////////////////
@@ -327,54 +334,56 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Shader //
     ////////////
 
-    ID3D12Resource* vertBuff = nullptr;
-    auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(vertices.size() * sizeof(vertices[0]));
-    result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                                           nullptr, IID_PPV_ARGS(&vertBuff));
+    ////////////////////////////////////////
+    // vertex buffer / vertex buffer view //
+    ////////////////////////////////////////
 
-    // copy vertices data to vertex buffer
-    PMD_VERTEX* vertMap = nullptr;
-    result = vertBuff->Map(0, nullptr, (void**)&vertMap);
-    if (FAILED(result)) {
-      throw std::runtime_error("Failed to map vertex buffer");
-    }
-    std::copy(std::begin(vertices), std::end(vertices), vertMap);
-    vertBuff->Unmap(0, nullptr);
-
-    // create vertex buffer view
     D3D12_VERTEX_BUFFER_VIEW vbView = {};
-    vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
-    vbView.SizeInBytes = static_cast<UINT>(vertices.size() * sizeof(vertices[0]));  // 全バイト数
-    vbView.StrideInBytes = sizeof(PMD_VERTEX);                                      // 1頂点あたりのバイト数
+    {
+      ID3D12Resource* vertBuff = nullptr;
+      auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+      auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(vertices.size() * sizeof(vertices[0]));
+      result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
 
-    //////////////////
-    // index buffer //
-    //////////////////
+      // copy vertices data to vertex buffer
+      PMD_VERTEX* vertMap = nullptr;
+      result = vertBuff->Map(0, nullptr, (void**)&vertMap);
+      if (FAILED(result)) {
+        throw std::runtime_error("Failed to map vertex buffer");
+      }
+      std::copy(std::begin(vertices), std::end(vertices), vertMap);
+      vertBuff->Unmap(0, nullptr);
 
-    unsigned short indices[] = {
-        0, 1, 2,  // 左下三角
-        2, 1, 3   // 右上三角
-    };
+      // create vertex buffer view
+      vbView.BufferLocation = vertBuff->GetGPUVirtualAddress();
+      vbView.SizeInBytes = static_cast<UINT>(vertices.size() * sizeof(vertices[0]));  // 全バイト数
+      vbView.StrideInBytes = sizeof(PMD_VERTEX);                                      // 1頂点あたりのバイト数
+    }
 
-    ID3D12Resource* idxBuff = nullptr;
-    resdesc.Width = sizeof(indices);
-    heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    resdesc = CD3DX12_RESOURCE_DESC::Buffer(sizeof(vertices));
-    result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
-                                           nullptr, IID_PPV_ARGS(&idxBuff));
+    //////////////////////////////////////
+    // index buffer / index buffer view //
+    //////////////////////////////////////
 
-    // 作ったバッファにインデックスデータをコピー
-    unsigned short* mappedIdx = nullptr;
-    idxBuff->Map(0, nullptr, (void**)&mappedIdx);
-    std::copy(std::begin(indices), std::end(indices), mappedIdx);
-    idxBuff->Unmap(0, nullptr);
-
-    // インデックスバッファビューを作成
     D3D12_INDEX_BUFFER_VIEW ibView = {};
-    ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
-    ibView.Format = DXGI_FORMAT_R16_UINT;
-    ibView.SizeInBytes = sizeof(indices);
+    {
+      ID3D12Resource* idxBuff = nullptr;
+      auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+      auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(indices.size() * sizeof(indices[0]));
+      result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc,
+                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&idxBuff));
+
+      // 作ったバッファにインデックスデータをコピー
+      unsigned short* mappedIdx = nullptr;
+      idxBuff->Map(0, nullptr, (void**)&mappedIdx);
+      std::copy(indices.begin(), indices.end(), mappedIdx);
+      idxBuff->Unmap(0, nullptr);
+
+      // インデックスバッファビューを作成
+      ibView.BufferLocation = idxBuff->GetGPUVirtualAddress();
+      ibView.Format = DXGI_FORMAT_R16_UINT;
+      ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
+    }
 
     ///////////////////////
     // load shader files //
@@ -544,7 +553,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     gpipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
 
     // PrimitiveTopologyType
-    gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+    gpipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
     // NumRenderTargets
     gpipeline.NumRenderTargets = 1;
@@ -901,7 +910,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->RSSetScissorRects(1, &scissorrect);
       _cmdList->SetGraphicsRootSignature(rootsignature);
 
-      _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+      _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
       _cmdList->IASetVertexBuffers(0, 1, &vbView);
       _cmdList->IASetIndexBuffer(&ibView);
 
@@ -912,8 +921,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
-      // _cmdList->DrawIndexedInstanced(6, 1, 0, 0, 0);
-      _cmdList->DrawInstanced(vertex_num, 1, 0, 0);
+      _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
+      // _cmdList->DrawInstanced(vertex_num, 1, 0, 0);
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
