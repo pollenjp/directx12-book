@@ -386,6 +386,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
 
     // Depth buffer / Depth buffer view //
+    ID3D12DescriptorHeap* dsvHeap = nullptr;
     ID3D12Resource* depthBuffer = nullptr;
     {
       // create depth buffer
@@ -411,6 +412,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       result = _dev->CreateCommittedResource(&depthHeapProp, D3D12_HEAP_FLAG_NONE, &depthResDesc,
                                              D3D12_RESOURCE_STATE_DEPTH_WRITE,  // 深度値書き込みに使用
                                              &depthClearValue, IID_PPV_ARGS(&depthBuffer));
+
+      // depth buffer view
+
+      // 深度のためのディスクリプタヒープ作成
+      D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc = {};        // 深度に使うことがわかればよい
+      dsvHeapDesc.NumDescriptors = 1;                     // 深度ビューは1 つ
+      dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;  // デプスステンシルビューとして使う
+
+      result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap));
+
+      // 深度ビュー作成
+      D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+      dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;                 // 深度値に32 ビット使用
+      dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
+      dsvDesc.Flags = D3D12_DSV_FLAG_NONE;                    // フラグは特になし
+
+      _dev->CreateDepthStencilView(depthBuffer, &dsvDesc, dsvHeap->GetCPUDescriptorHandleForHeapStart());
     }
 
     ///////////////////////
@@ -568,8 +586,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     // DepthStencilState
 
-    gpipeline.DepthStencilState.DepthEnable = false;
-    gpipeline.DepthStencilState.StencilEnable = false;
+    gpipeline.DepthStencilState.DepthEnable = true;                           // 深度バッファーを使う
+    gpipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;  // 書き込む
+    gpipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;       // 小さいほうを採用
 
     // InputLayout
 
@@ -928,7 +947,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       auto rtvH = rtvHeaps->GetCPUDescriptorHandleForHeapStart();
       rtvH.ptr +=
           static_cast<ULONG_PTR>(bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
-      _cmdList->OMSetRenderTargets(1, &rtvH, false, nullptr);
+      auto dsvH = dsvHeap->GetCPUDescriptorHandleForHeapStart();
+      _cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
 
       // 画面クリア
       constexpr float clearColor[] = {1.0f, 1.0f, 1.0f, 1.0f};  // while
@@ -950,7 +970,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
       _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
-      // _cmdList->DrawInstanced(vertex_num, 1, 0, 0);
+
+      _cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
