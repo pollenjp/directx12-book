@@ -385,6 +385,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       ibView.SizeInBytes = indices.size() * sizeof(indices[0]);
     }
 
+    // Depth buffer / Depth buffer view //
+    ID3D12Resource* depthBuffer = nullptr;
+    {
+      // create depth buffer
+
+      D3D12_RESOURCE_DESC depthResDesc = {};
+      depthResDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;  // 2 次元のテクスチャデータ
+      depthResDesc.Width = window_width;            // 幅と高さはレンダーターゲットと同じ
+      depthResDesc.Height = window_height;          // 同上
+      depthResDesc.DepthOrArraySize = 1;            // テクスチャ配列でも、3D テクスチャでもない
+      depthResDesc.Format = DXGI_FORMAT_D32_FLOAT;  // 深度値書き込み用フォーマット
+      depthResDesc.SampleDesc.Count = 1;            // サンプルは1 ピクセルあたり1 つ
+      depthResDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;  // デプスステンシルとして使用
+
+      D3D12_HEAP_PROPERTIES depthHeapProp = {};
+      depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;  // DEFAULT なのであとはUNKNOWN でよい
+      depthHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+      depthHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+      D3D12_CLEAR_VALUE depthClearValue = {};
+      depthClearValue.DepthStencil.Depth = 1.0f;       // 深さ1.0f (最大値) でクリア
+      depthClearValue.Format = DXGI_FORMAT_D32_FLOAT;  // 32 ビットfloat 値としてクリア
+
+      result = _dev->CreateCommittedResource(&depthHeapProp, D3D12_HEAP_FLAG_NONE, &depthResDesc,
+                                             D3D12_RESOURCE_STATE_DEPTH_WRITE,  // 深度値書き込みに使用
+                                             &depthClearValue, IID_PPV_ARGS(&depthBuffer));
+    }
+
     ///////////////////////
     // load shader files //
     ///////////////////////
