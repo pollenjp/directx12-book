@@ -34,6 +34,15 @@ struct PMD_VERTEX {
 #pragma pack(pop)
 
 /**
+ * @brief シェーダー側に渡すための基本的な行列データ
+ *
+ */
+struct MatricesData {
+  DirectX::XMMATRIX world;     // World Matrix
+  DirectX::XMMATRIX viewproj;  // View Transformation Matrix * Projection Matrix
+};
+
+/**
  * @brief アライメントに揃えたサイズを返す
  * @param size 元のサイズ
  * @param alignment アライメントサイズ
@@ -835,7 +844,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->Reset(_cmdAllocator, nullptr);
     }
 
-    DirectX::XMMATRIX* mapMatrix;  // マップ先を示すポインター
+    MatricesData* mapMatrix;  // マップ先を示すポインター
     ID3D12Resource* constBuff = nullptr;
     DirectX::XMMATRIX worldMat;  // 4x4
     DirectX::XMMATRIX viewMat;   // 4x4
@@ -858,7 +867,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       );
 
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(worldMat) + 0xff) & ~0xff);
+      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(MatricesData) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
       result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // constant buffer に ``mapMatrix`` の内容をコピー
@@ -924,7 +933,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       angle += 0.1f;
       worldMat = DirectX::XMMatrixRotationY(angle);
-      *mapMatrix = worldMat * viewMat * projMat;  // row-major
+      mapMatrix->world = worldMat;
+      mapMatrix->viewproj = viewMat * projMat;  // row-major
 
       // DirectX処理
       //バックバッファのインデックスを取得

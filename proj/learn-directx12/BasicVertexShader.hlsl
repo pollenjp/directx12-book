@@ -9,8 +9,9 @@ Output BasicVS(
 )
 {
     Output output;
-    output.svpos = mul(mat, pos);
-    output.normal = normal;
+    output.svpos = mul(mul(viewproj_matrix, world_matrix), pos); // column major
+    normal.w = 0; // 平行移動成分を無効にする
+    output.normal = mul(world_matrix, normal); // 法線にもワールド変換を行う
     output.uv = uv;
     return output;
 }
