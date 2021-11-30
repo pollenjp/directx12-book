@@ -2,6 +2,7 @@
 struct Output
 {
     float4 svpos : SV_POSITION; // システム用頂点座標
+    float4 normal: NORMAL;
     float2 uv :TEXCOORD;        // uv 値
 };
 
@@ -12,6 +13,6 @@ SamplerState smp : register(s0); // 0 番スロットに設定されたサンプ
 cbuffer cbuff0 : register(b0) // 定数バッファー
 {
     // matrix, float4x4, matrix<float, 4, 4> (same expression)
-    float4x4 mat; // 変換行列
-    // matrix<float, 4, 4> mat; // 変換行列
+    float4x4 world_matrix;
+    float4x4 viewproj_matrix;
 };
