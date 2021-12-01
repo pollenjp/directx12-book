@@ -1115,11 +1115,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
-      //マテリアル
-      _cmdList->SetDescriptorHeaps(1, &materialDescHeap);
-      _cmdList->SetGraphicsRootDescriptorTable(1, materialDescHeap->GetGPUDescriptorHandleForHeapStart());
+      _cmdList->SetDescriptorHeaps(1, &materialDescHeap);  // material
 
-      _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
+      auto material_descriptor_handle = materialDescHeap->GetGPUDescriptorHandleForHeapStart();
+      unsigned int idxOffset = 0;
+      for (auto& m : materials) {
+        _cmdList->SetGraphicsRootDescriptorTable(1, material_descriptor_handle);
+        _cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
+        material_descriptor_handle.ptr +=
+            _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        idxOffset += m.indicesNum;
+      }
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
