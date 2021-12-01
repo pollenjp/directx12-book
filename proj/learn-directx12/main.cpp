@@ -31,6 +31,55 @@ struct PMD_VERTEX {
   uint8_t EdgeFlag;
   uint16_t dummy;
 };
+
+/**
+ * @brief PMD マテリアル構造体
+ *
+ */
+struct PMDMaterial {
+  DirectX::XMFLOAT3 diffuse;   // 4 bytes * 3 ディフューズ色
+  float alpha;                 // 4 bytes      ディフューズα
+  float specularity;           // 4 bytes      スペキュラの強さ (乗算値)
+  DirectX::XMFLOAT3 specular;  // 4 bytes * 3 スペキュラ色
+  DirectX::XMFLOAT3 ambient;   // 4 bytes * 3 アンビエント色
+  unsigned char toonIdx;       // 1 byte      トゥーン番号 (後述)
+  unsigned char edgeFlg;       // 1 byte      マテリアルごとの輪郭線フラグ
+  unsigned int indicesNum;     // 4 bytes     このマテリアルが割り当てられる
+                               // インデックス数
+  char texFilePath[20];        // 1 byte * 20 テクスチャファイルパス + alpha
+};
+
+/**
+ * @brief シェーダー側に投げられるマテリアルデータ
+ *
+ */
+struct MaterialForHlsl {
+  DirectX::XMFLOAT3 diffuse;   // 4 bytes * 3 ディフューズ色
+  float alpha;                 // 4 bytes     ディフューズα
+  DirectX::XMFLOAT3 specular;  // 4 bytes * 3 スペキュラ色
+  float specularity;           // 4 bytes     スペキュラの強さ（乗算値）
+  DirectX::XMFLOAT3 ambient;   // 4 bytes * 3 アンビエント色
+};
+
+/**
+ * @brief それ以外のマテリアルデータ
+ *
+ */
+struct AdditionalMaterial {
+  std::string texPath;  // テクスチャファイルパス
+  int toonIdx;          // トゥーン番号
+  bool edgeFlg;         // マテリアルごとの輪郭線フラグ
+};
+
+/**
+ * @brief 全体をまとめるデータ
+ *
+ */
+struct Material {
+  unsigned int indicesNum;  // インデックス数
+  MaterialForHlsl material;
+  AdditionalMaterial additional;
+};
 #pragma pack(pop)
 
 /**
@@ -184,6 +233,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     std::vector<unsigned short> indices(indices_num);
     fread(indices.data(), indices_num * sizeof(unsigned short), 1, fp);
+
+    // texture
+    unsigned int num_material;  // マテリアル数
+    fread(&num_material, sizeof(num_material), 1, fp);
+    std::vector<PMDMaterial> pmd_materials(num_material);
+    fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
+    {  // debug
+      wchar_t msgbuf[256];
+      swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"material num is %u\n", num_material);
+      OutputDebugStringW(msgbuf);
+    }
+
+    std::vector<Material> materials(pmd_materials.size());
+    for (int i = 0; i < pmd_materials.size(); ++i) {
+      materials[i].indicesNum = pmd_materials[i].indicesNum;
+      materials[i].material.diffuse = pmd_materials[i].diffuse;
+      materials[i].material.alpha = pmd_materials[i].alpha;
+      materials[i].material.specular = pmd_materials[i].specular;
+      materials[i].material.specularity = pmd_materials[i].specularity;
+      materials[i].material.ambient = pmd_materials[i].ambient;
+    }
 
     fclose(fp);
 
@@ -634,30 +704,48 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : 頂点情報 (入力アセンブラ) がある
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
-    D3D12_ROOT_PARAMETER rootparam = {};
+    D3D12_ROOT_PARAMETER rootparam[2] = {};
     {
       // descriptor range
-      D3D12_DESCRIPTOR_RANGE descriptor_range[2] = {};  // テクスチャと定数の２つ
+      D3D12_DESCRIPTOR_RANGE descriptor_range[3] = {};  // テクスチャと定数の２つ
 
+      // SRV
       descriptor_range[0].NumDescriptors = 1;                           // テクスチャひとつ
       descriptor_range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;  // 種別はテクスチャ
       descriptor_range[0].BaseShaderRegister = 0;                       // 0番スロットから
       descriptor_range[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+      // CBV 1st
       descriptor_range[1].NumDescriptors = 1;                           // 定数ひとつ
       descriptor_range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;  // 種別は定数
       descriptor_range[1].BaseShaderRegister = 0;                       // 0番スロットから
       descriptor_range[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-      // root parameter
-      rootparam.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-      rootparam.DescriptorTable.pDescriptorRanges = descriptor_range;
-      rootparam.DescriptorTable.NumDescriptorRanges = 2;         // 2つ分を一回で指定
-      rootparam.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;  // pixel shader, vertex shader can be used.
+      // CBV 2nd
+      descriptor_range[2].NumDescriptors = 1;  // ディスクリプタヒープは複数だが一度に使うのは1 つ
+      descriptor_range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;  // 種別は定数
+      descriptor_range[2].BaseShaderRegister = 1;                       // 1番スロットから
+      descriptor_range[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+      ////////////////////
+      // root parameter //
+      ////////////////////
+
+      // set SRV
+      rootparam[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      rootparam[0].DescriptorTable.pDescriptorRanges = &descriptor_range[0];
+      rootparam[0].DescriptorTable.NumDescriptorRanges = 2;
+      rootparam[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+      // set CBV
+      rootparam[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+      rootparam[1].DescriptorTable.pDescriptorRanges = &descriptor_range[2];
+      rootparam[1].DescriptorTable.NumDescriptorRanges = 1;
+      rootparam[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
     }
 
-    rootSignatureDesc.pParameters = &rootparam;  // ルートパラメータの先頭アドレス
-    rootSignatureDesc.NumParameters = 1;         // ルートパラメータ数
+    rootSignatureDesc.pParameters = rootparam;  // ルートパラメータの先頭アドレス
+    rootSignatureDesc.NumParameters = 2;        // ルートパラメータ数
 
     // sampler
     D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
@@ -713,6 +801,54 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     scissorrect.left = 0;                                  // 切り抜き左座標
     scissorrect.right = scissorrect.left + window_width;   // 切り抜き右座標
     scissorrect.bottom = scissorrect.top + window_height;  // 切り抜き下座標
+
+    // Material buffer //
+
+    // マテリアルバッファーを作成
+    ID3D12Resource* material_buffer = nullptr;
+    ID3D12DescriptorHeap* materialDescHeap = nullptr;
+    {
+      auto material_buff_size = sizeof(MaterialForHlsl);
+      material_buff_size = (material_buff_size + 0xff) & ~0xff;
+      auto heapProp = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+      // TODO: 勿体ないけど仕方ないですね
+      auto resDesc = CD3DX12_RESOURCE_DESC::Buffer(material_buff_size * num_material);
+      result =
+          _dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                                        nullptr, IID_PPV_ARGS(&material_buffer));
+
+      // マップマテリアルにコピー
+      char* map_material = nullptr;
+      result = material_buffer->Map(0, nullptr, (void**)&map_material);
+      for (auto& m : materials) {
+        *((MaterialForHlsl*)map_material) = m.material;  // データコピー
+        map_material += material_buff_size;  // 次のアライメント位置まで進める (256 の倍数)
+      }
+      material_buffer->Unmap(0, nullptr);
+
+      //////////////////////////
+      // material buffer view //
+      //////////////////////////
+
+      D3D12_DESCRIPTOR_HEAP_DESC matDescHeapDesc = {};
+      matDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+      matDescHeapDesc.NodeMask = 0;
+      matDescHeapDesc.NumDescriptors = num_material;  // マテリアル数を指定
+      matDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+      result = _dev->CreateDescriptorHeap(&matDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
+
+      D3D12_CONSTANT_BUFFER_VIEW_DESC matCBVDesc = {};
+      matCBVDesc.BufferLocation = material_buffer->GetGPUVirtualAddress();  // バッファーアドレス
+      matCBVDesc.SizeInBytes = material_buff_size;  // マテリアルの256 アライメントサイズ
+
+      // 先頭を記録
+      auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
+      for (int i = 0; i < num_material; ++i) {
+        _dev->CreateConstantBufferView(&matCBVDesc, matDescHeapH);
+        matDescHeapH.ptr += _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        matCBVDesc.BufferLocation += material_buff_size;
+      }
+    }
 
     ////////////////////
     // Texture Buffer //
@@ -979,8 +1115,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
 
-      _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
+      //マテリアル
+      _cmdList->SetDescriptorHeaps(1, &materialDescHeap);
+      _cmdList->SetGraphicsRootDescriptorTable(1, materialDescHeap->GetGPUDescriptorHandleForHeapStart());
 
+      _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
