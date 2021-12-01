@@ -959,6 +959,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           static_cast<ULONG_PTR>(bbIdx * _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV));
       auto dsvH = dsvHeap->GetCPUDescriptorHandleForHeapStart();
       _cmdList->OMSetRenderTargets(1, &rtvH, false, &dsvH);
+      _cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
       // 画面クリア
       constexpr float clearColor[] = {1.0f, 1.0f, 1.0f, 1.0f};  // while
@@ -966,7 +967,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       _cmdList->RSSetViewports(1, &viewport);
       _cmdList->RSSetScissorRects(1, &scissorrect);
-      _cmdList->SetGraphicsRootSignature(rootsignature);
 
       _cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
       _cmdList->IASetVertexBuffers(0, 1, &vbView);
@@ -981,7 +981,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       _cmdList->DrawIndexedInstanced(indices_num, 1, 0, 0, 0);
 
-      _cmdList->ClearDepthStencilView(dsvH, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
       BarrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
       BarrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
