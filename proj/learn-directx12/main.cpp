@@ -7,6 +7,7 @@
 #include <dxgi1_6.h>
 #include <tchar.h>
 
+#include <filesystem>
 #include <vector>
 
 #ifdef _DEBUG
@@ -20,6 +21,22 @@
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
+
+/**
+ * @brief
+ * @param str マルチバイト文字列
+ * @return 変換されたワイド文字列
+ */
+std::wstring GetWideStringFromString(const std::string& str, UINT code_page = CP_ACP) {
+  // 文字列数
+  auto num1 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
+  std::wstring wstr;
+  wstr.resize(num1);  // 得られた文字列数でリサイズ
+  // 確保済みのwstrに変換文字列をコピー
+  auto num2 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, &wstr[0], num1);
+  assert(num1 == num2);
+  return wstr;
+}
 
 #pragma pack(push, 1)
 struct PMD_VERTEX {
@@ -197,25 +214,31 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       char comment[256];    // モデルコメント
     };
 
+    FILE* fp;
+    std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/初音ミク.pmd");
+    {  // debug
+      OutputDebugStringW((L"Model filepath is \"" + model_filepath.wstring() + L"\"\n").c_str());
+    }
+    {
+      auto err = _wfopen_s(&fp, model_filepath.wstring().c_str(), L"rb");
+      if (fp == nullptr) {
+        wchar_t strerr[256];
+        _wcserror_s(strerr, 256, err);
+        LPCWSTR ptr = strerr;
+        MessageBox(hwnd, ptr, L"Open Error", MB_ICONERROR);
+        return -1;
+      }
+    }
+
     char signature[3];  // 先頭 Pmd (3 bytes)
     PMDHeader pmdheader = {};
-    FILE* fp;
-    auto err = _wfopen_s(&fp, L"Model/初音ミク.pmd", L"rb");
-    if (fp == nullptr) {
-      wchar_t strerr[256];
-      _wcserror_s(strerr, 256, err);
-      LPCWSTR ptr = strerr;
-      MessageBox(hwnd, ptr, L"Open Error", MB_ICONERROR);
-      return -1;
-    }
     fread(signature, sizeof(signature), 1, fp);
     fread(&pmdheader, sizeof(pmdheader), 1, fp);
 
     // header の直後に頂点数
     unsigned int vertex_num(0);  // 頂点数
     fread(&vertex_num, sizeof(vertex_num), 1, fp);
-
-    {
+    {  // debug
       wchar_t msgbuf[256];
       swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"vertex num is %u\n", vertex_num);
       OutputDebugStringW(msgbuf);
@@ -237,12 +260,23 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // texture
     unsigned int num_material;  // マテリアル数
     fread(&num_material, sizeof(num_material), 1, fp);
-    std::vector<PMDMaterial> pmd_materials(num_material);
-    fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
     {  // debug
       wchar_t msgbuf[256];
       swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"material num is %u\n", num_material);
       OutputDebugStringW(msgbuf);
+    }
+    std::vector<PMDMaterial> pmd_materials(num_material);
+    fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
+    {  // debug
+      wchar_t msgbuf[256];
+      for (unsigned int i = 0; i < pmd_materials.size(); i++) {
+        std::string tmp_str(pmd_materials[i].texFilePath);
+        std::filesystem::path tmp_tex_fpath_relative = std::filesystem::path(GetWideStringFromString(tmp_str, CP_ACP));
+        std::filesystem::path tmp_filepath = model_filepath.parent_path() / tmp_tex_fpath_relative;
+        swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"idx %u : texture file path: \"%s\"\n", i,
+                 tmp_filepath.wstring().c_str());
+        OutputDebugStringW(msgbuf);
+      }
     }
 
     std::vector<Material> materials(pmd_materials.size());
