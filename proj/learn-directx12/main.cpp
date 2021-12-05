@@ -8,6 +8,7 @@
 #include <tchar.h>
 
 #include <filesystem>
+#include <sstream>
 #include <vector>
 
 #ifdef _DEBUG
@@ -165,12 +166,9 @@ ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
   auto result = DirectX::LoadFromWICFile(tex_path_wstr.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
   if (FAILED(result)) {
     {  // debug
-      const std::wstring tmp_tmplate(L"Failed to load a file: \"%s\"\n");
-      const int32_t wstr_length(256);
-      wchar_t* wchar_array = new wchar_t[wstr_length];
-      std::swprintf(wchar_array, wstr_length, tmp_tmplate.c_str(), tex_path_wstr.c_str());
-      OutputDebugStringW(wchar_array);
-      delete wchar_array;
+      std::wstringstream ss;
+      ss << L"Failed to load a file: \"" << tex_path_wstr.c_str() << L"\"" << std::endl;
+      OutputDebugStringW(ss.str().c_str());
     }
     return nullptr;
   }
@@ -327,9 +325,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     };
 
     FILE* fp;
-    std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/初音ミク.pmd");
+    // const std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/初音ミク.pmd");
+    const std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/巡音ルカ.pmd");
     {  // debug
-      OutputDebugStringW((L"Model filepath is \"" + model_filepath.wstring() + L"\"\n").c_str());
+      std::wstringstream ss;
+      ss << L"Model filepath is \"" << model_filepath.wstring() << L"\"" << std::endl;
+      OutputDebugStringW(ss.str().c_str());
     }
     {
       auto err = _wfopen_s(&fp, model_filepath.wstring().c_str(), L"rb");
@@ -351,9 +352,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     unsigned int vertex_num(0);  // 頂点数
     fread(&vertex_num, sizeof(vertex_num), 1, fp);
     {  // debug
-      wchar_t msgbuf[256];
-      swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"vertex num is %u\n", vertex_num);
-      OutputDebugStringW(msgbuf);
+      std::wstringstream ss;
+      ss << L"vertex num is " << vertex_num << std::endl;
+      OutputDebugStringW(ss.str().c_str());
     }
 
     constexpr size_t pmdvertex_size(38);           // 頂点 1 つあたりのサイズ
@@ -373,22 +374,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     unsigned int num_material;  // マテリアル数
     fread(&num_material, sizeof(num_material), 1, fp);
     {  // debug
-      wchar_t msgbuf[256];
-      swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"material num is %u\n", num_material);
-      OutputDebugStringW(msgbuf);
+      std::wstringstream ss;
+      ss << L"material num is " << num_material << std::endl;
+      OutputDebugStringW(ss.str().c_str());
     }
     std::vector<PMDMaterial> pmd_materials(num_material);
     std::vector<ID3D12Resource*> texture_resources(num_material);
     fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
     {  // debug
-      wchar_t msgbuf[256];
       for (unsigned int i = 0; i < pmd_materials.size(); i++) {
         std::string tmp_str(pmd_materials[i].texFilePath);
-        std::filesystem::path tmp_tex_fpath_relative = std::filesystem::path(GetWideStringFromString(tmp_str, CP_ACP));
-        std::filesystem::path tmp_filepath = model_filepath.parent_path() / tmp_tex_fpath_relative;
-        swprintf(msgbuf, sizeof(msgbuf) / sizeof(msgbuf[0]), L"idx %u : texture file path: \"%s\"\n", i,
-                 tmp_filepath.wstring().c_str());
-        OutputDebugStringW(msgbuf);
+        auto tmp_tex_fpath_relative = std::filesystem::path(GetWideStringFromString(tmp_str, CP_ACP));
+        auto tmp_filepath = model_filepath.parent_path() / tmp_tex_fpath_relative;
+        std::wstringstream ss;
+        ss << L"idx " << i << L" : texture file path: \"" << tmp_filepath.wstring().c_str() << L"\"" << std::endl;
+        OutputDebugStringW(ss.str().c_str());
       }
     }
 
