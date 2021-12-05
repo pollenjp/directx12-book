@@ -164,6 +164,14 @@ ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
   DirectX::ScratchImage scratchImg = {};
   auto result = DirectX::LoadFromWICFile(tex_path_wstr.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
   if (FAILED(result)) {
+    {  // debug
+      const std::wstring tmp_tmplate(L"Failed to load a file: \"%s\"\n");
+      const int32_t wstr_length(256);
+      wchar_t* wchar_array = new wchar_t[wstr_length];
+      std::swprintf(wchar_array, wstr_length, tmp_tmplate.c_str(), tex_path_wstr.c_str());
+      OutputDebugStringW(wchar_array);
+      delete wchar_array;
+    }
     return nullptr;
   }
 
