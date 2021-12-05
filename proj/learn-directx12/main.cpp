@@ -222,8 +222,7 @@ ID3D12Resource* CreateWhiteTexture() {
   texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
   texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
   texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
-  // TODO: why this line is commented out?
-  // texHeapProp.CreationNodeMask = 0;
+  texHeapProp.CreationNodeMask = 0;
   texHeapProp.VisibleNodeMask = 0;
 
   // texture's minimum size is 4x4
