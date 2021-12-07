@@ -21,6 +21,7 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "DirectXTex.lib")
+namespace fs = std::filesystem;
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
@@ -167,18 +168,22 @@ ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
   DirectX::ScratchImage scratchImg = {};
   auto result = DirectX::LoadFromWICFile(tex_path_wstr.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
   if (FAILED(result)) {
+#ifdef _DEBUG
     {  // debug
       std::wstringstream ss;
       ss << L"Failed to load a file: \"" << tex_path_wstr.c_str() << L"\"" << std::endl;
       OutputDebugStringW(ss.str().c_str());
     }
+#endif
     return nullptr;
   }
+#ifdef _DEBUG
   {  // debug
     std::wstringstream ss;
     ss << L"Load a file: \"" << tex_path_wstr.c_str() << L"\"" << std::endl;
     OutputDebugStringW(ss.str().c_str());
   }
+#endif
 
   auto img = scratchImg.GetImage(0, 0, 0);  // 生データ抽出
 
@@ -226,11 +231,11 @@ ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
 }
 
 /**
- * @brief Create a White Texture object
+ * @brief Create a texture object
  *
  * @return ID3D12Resource*
  */
-ID3D12Resource* CreateWhiteTexture() {
+ID3D12Resource* CreateOneValueTexture(unsigned int fill_value) {
   D3D12_HEAP_PROPERTIES texHeapProp = {};
   texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
   texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
@@ -263,7 +268,7 @@ ID3D12Resource* CreateWhiteTexture() {
     return nullptr;
   }
   std::vector<unsigned char> data(width * height * 4);  // 4: RGBA
-  std::fill(data.begin(), data.end(), 0xff);            // 全部 255 で埋める
+  std::fill(data.begin(), data.end(), fill_value);      // 全部 255 で埋める
   // データ転送
   result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), width * height, data.size());
   return whiteBuff;
@@ -349,9 +354,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     };
 
     FILE* fp;
-    // const std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/初音ミク.pmd");
-    // const std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/巡音ルカ.pmd");
-    const std::filesystem::path model_filepath = std::filesystem::absolute(L"Model/初音ミクmetal.pmd");
+    // const fs::path model_filepath = fs::absolute(L"Model/初音ミク.pmd");
+    const fs::path model_filepath = fs::absolute(L"Model/巡音ルカ.pmd");
+    // const fs::path model_filepath = fs::absolute(L"Model/初音ミクmetal.pmd");
     {  // debug
       std::wstringstream ss;
       ss << L"Model filepath is \"" << model_filepath.wstring() << L"\"" << std::endl;
@@ -406,11 +411,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     std::vector<PMDMaterial> pmd_materials(num_material);
     std::vector<ID3D12Resource*> texture_resources(num_material);
     std::vector<ID3D12Resource*> sph_resources(num_material);
+    std::vector<ID3D12Resource*> spa_resources(num_material);
     fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
     {  // debug
       for (unsigned int i = 0; i < pmd_materials.size(); i++) {
         std::string tmp_str(pmd_materials[i].texFilePath);
-        auto tmp_tex_fpath_relative = std::filesystem::path(GetWideStringFromString(tmp_str, CP_ACP));
+        auto tmp_tex_fpath_relative = fs::path(GetWideStringFromString(tmp_str, CP_ACP));
         auto tmp_filepath = model_filepath.parent_path() / tmp_tex_fpath_relative;
         std::wstringstream ss;
         ss << L"idx " << i << L" : texture file path: \"" << tmp_filepath.wstring().c_str() << L"\"" << std::endl;
@@ -904,7 +910,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       // textures
       // register(t0) : texture
       // register(t1) : sphere map texture
-      descriptor_range[2].NumDescriptors = 2;                           // テクスチャ2つ
+      descriptor_range[2].NumDescriptors = 3;                           // テクスチャ2つ
       descriptor_range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;  // 種別はテクスチャ
       descriptor_range[2].BaseShaderRegister = 0;                       // 0 番スロットから
       descriptor_range[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -1018,7 +1024,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       D3D12_DESCRIPTOR_HEAP_DESC matDescHeapDesc = {};
       matDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
       matDescHeapDesc.NodeMask = 0;
-      matDescHeapDesc.NumDescriptors = num_material * 3;  // マテリアル数を指定
+      matDescHeapDesc.NumDescriptors = num_material * 4;  // マテリアル数を指定
       matDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
       result = _dev->CreateDescriptorHeap(&matDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
 
@@ -1034,37 +1040,64 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           texture_resources[i] = nullptr;
         }
         // モデルとテクスチャパスからアプリケーションからのテクスチャパスを得る
-        std::filesystem::path tex_filepath;
-        std::filesystem::path sph_filepath;
-        std::filesystem::path spa_filepath;
+        fs::path tex_filepath;
+        fs::path sph_filepath;
+        fs::path spa_filepath;
         char splitter('*');
         // split して std::vector に格納
         auto file_list = SplitString(pmd_materials[i].texFilePath, splitter);
         for (auto& filename_str : file_list) {
-          std::filesystem::path filepath =
-              model_filepath.parent_path() / std::filesystem::path(GetWideStringFromString(filename_str, CP_ACP));
+          fs::path filepath = model_filepath.parent_path() / fs::path(GetWideStringFromString(filename_str, CP_ACP));
+#ifdef _DEBUG
+          {  // debug
+            std::wstringstream ss;
+            ss << L"Try to load a file: \"" << filepath.wstring().c_str() << L"\"" << std::endl;
+            OutputDebugStringW(ss.str().c_str());
+          }
+          {
+            std::wstringstream ss;
+            for (std::size_t i = 0; i < filepath.extension().wstring().size(); i++) {
+              ss << std::hex << (unsigned short)filepath.extension().wstring()[i] << " : " << std::endl;
+            }
+            std::wstring tmp_wstr(L".sph");
+            for (std::size_t i = 0; i < tmp_wstr.size(); i++) {
+              ss << std::hex << (unsigned short)tmp_wstr[i] << " : " << tmp_wstr[i] << std::endl;
+            }
+            OutputDebugStringW(ss.str().c_str());
+          }
+#endif
 
-          if (filepath.extension() == ".sph") {
-            if (sph_filepath.string() != "") {
-              std::cerr << "Error: multiple sph filepath" << std::endl;
+          if (filepath.extension().wstring() == L".sph") {
+            if (sph_filepath.wstring() != L"") {
+              std::wcerr << "Error: multiple sph filepath : " << filepath.wstring() << std::endl;
             }
             sph_filepath = filepath;
-          } else if (filepath.extension() == ".spa") {
-            if (spa_filepath.string() != "") {
-              std::cerr << "Error: multiple spa filepath" << std::endl;
+          } else if (filepath.extension().wstring() == L".spa") {
+            if (spa_filepath.wstring() != L"") {
+              std::wcerr << "Error: multiple spa filepath : " << filepath.wstring() << std::endl;
             }
             spa_filepath = filepath;
           } else {
-            if (tex_filepath.string() != "") {
-              std::cerr << "Error: multiple tex filepath" << std::endl;
+            if (tex_filepath.wstring() != L"") {
+              std::wcerr << L"Error: multiple tex filepath : " << filepath.wstring() << std::endl;
             }
             tex_filepath = filepath;
           }
         }
 
+#ifdef _DEBUG
+        {  // debug
+          std::wstringstream ss;
+          ss << L"tex_filepath : \"" << tex_filepath.wstring().c_str() << L"\"" << std::endl
+             << L"sph_filepath : \"" << sph_filepath.wstring().c_str() << L"\"" << std::endl
+             << L"spa_filepath : \"" << spa_filepath.wstring().c_str() << L"\"" << std::endl;
+          OutputDebugStringW(ss.str().c_str());
+        }
+#endif
+
         texture_resources[i] = LoadTextureFromFile(tex_filepath.wstring());
         sph_resources[i] = LoadTextureFromFile(sph_filepath.wstring());
-        // spaResources[i] = LoadTextureFromFile(spa_filepath.wstring());
+        spa_resources[i] = LoadTextureFromFile(spa_filepath.wstring());
       }
 
       ///////////////////////////////////////
@@ -1079,7 +1112,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;                       // 2D テクスチャ
         srvDesc.Texture2D.MipLevels = 1;  // ミップマップは使用しないので1
 
-        auto white_tex = CreateWhiteTexture();
+        auto white_tex = CreateOneValueTexture(0xff);
+        auto black_tex = CreateOneValueTexture(0x00);
         auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
         auto inc_size = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         for (int i = 0; i < num_material; ++i) {
@@ -1106,6 +1140,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           } else {
             srvDesc.Format = sph_resources[i]->GetDesc().Format;
             _dev->CreateShaderResourceView(sph_resources[i], &srvDesc, matDescHeapH);
+          }
+          matDescHeapH.ptr += inc_size;
+
+          // register(t2)
+          if (spa_resources[i] == nullptr) {
+            srvDesc.Format = black_tex->GetDesc().Format;
+            _dev->CreateShaderResourceView(black_tex, &srvDesc, matDescHeapH);
+          } else {
+            srvDesc.Format = spa_resources[i]->GetDesc().Format;
+            _dev->CreateShaderResourceView(spa_resources[i], &srvDesc, matDescHeapH);
           }
           matDescHeapH.ptr += inc_size;
         }
@@ -1236,7 +1280,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       auto material_descriptor_handle = materialDescHeap->GetGPUDescriptorHandleForHeapStart();
       unsigned int idxOffset = 0;
-      auto cbvsrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 3;
+      auto cbvsrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 4;
       for (auto& m : materials) {
         _cmdList->SetGraphicsRootDescriptorTable(1, material_descriptor_handle);
         _cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
