@@ -8,7 +8,9 @@
 #include <tchar.h>
 
 #include <filesystem>
+#include <istream>
 #include <sstream>
+#include <string>
 #include <vector>
 
 #ifdef _DEBUG
@@ -51,7 +53,7 @@ struct PMD_VERTEX {
 };
 
 /**
- * @brief PMD マテリアル構造体
+ * @brief PMD マテリアル構造体 ( fread 用)
  *
  */
 struct PMDMaterial {
@@ -260,6 +262,23 @@ ID3D12Resource* CreateWhiteTexture() {
   // データ転送
   result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), width * height, data.size());
   return whiteBuff;
+}
+
+/**
+ * @brief split string by delimiter
+ *
+ * @param text_str
+ * @param splitter
+ * @return std::vector<std::string>
+ */
+std::vector<std::string> SplitString(const std::string& text_str, const char splitter = '*') {
+  std::vector<std::string> v;
+  std::stringstream ss{text_str};
+  std::string buf;
+  while (std::getline(ss, buf, splitter)) {
+    v.push_back(buf);
+  }
+  return v;
 }
 
 void EnableDebugLayer() {
@@ -1006,10 +1025,37 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           texture_resources[i] = nullptr;
         }
         // モデルとテクスチャパスからアプリケーションからのテクスチャパスを得る
-        std::string tex_fpath_relative_str(pmd_materials[i].texFilePath);
-        std::filesystem::path tex_fpath = model_filepath.parent_path() / std::filesystem::path(GetWideStringFromString(
-                                                                             tex_fpath_relative_str, CP_ACP));
-        texture_resources[i] = LoadTextureFromFile(tex_fpath.wstring());
+        std::filesystem::path tex_filepath;
+        std::filesystem::path sph_filepath;
+        std::filesystem::path spa_filepath;
+        char splitter('*');
+        // split して std::vector に格納
+        auto file_list = SplitString(pmd_materials[i].texFilePath, splitter);
+        for (auto& filename_str : file_list) {
+          std::filesystem::path filepath =
+              model_filepath.parent_path() / std::filesystem::path(GetWideStringFromString(filename_str, CP_ACP));
+
+          if (filepath.extension() == ".sph") {
+            if (sph_filepath.string() != "") {
+              std::cerr << "Error: multiple sph filepath" << std::endl;
+            }
+            sph_filepath = filepath;
+          } else if (filepath.extension() == ".spa") {
+            if (spa_filepath.string() != "") {
+              std::cerr << "Error: multiple spa filepath" << std::endl;
+            }
+            spa_filepath = filepath;
+          } else {
+            if (tex_filepath.string() != "") {
+              std::cerr << "Error: multiple tex filepath" << std::endl;
+            }
+            tex_filepath = filepath;
+          }
+        }
+
+        texture_resources[i] = LoadTextureFromFile(tex_filepath.wstring());
+        // sphResources[i] = LoadTextureFromFile(sph_filepath.wstring());
+        // spaResources[i] = LoadTextureFromFile(spa_filepath.wstring());
       }
 
       ///////////////////////////////////////
