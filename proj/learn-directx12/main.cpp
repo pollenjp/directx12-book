@@ -33,12 +33,12 @@ const unsigned int window_height = 720;
 std::wstring GetWideStringFromString(const std::string& str, UINT code_page = CP_ACP) {
   // 文字列数
   auto num1 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
-  std::wstring wstr;
-  wstr.resize(num1);  // 得られた文字列数でリサイズ
-  // 確保済みのwstrに変換文字列をコピー
-  auto num2 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, &wstr[0], num1);
+  wchar_t* buf = new wchar_t[num1 + 1];
+  auto num2 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, buf, num1);
   assert(num1 == num2);
-  return wstr;
+  std::wstring ret_wstr(buf);
+  delete buf;
+  return ret_wstr;
 }
 
 #pragma pack(push, 1)
