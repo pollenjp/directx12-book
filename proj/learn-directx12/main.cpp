@@ -103,14 +103,17 @@ struct Material {
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)  // (全てのメンバ変数が同じサイズなら設定する必要はない)
 /**
  * @brief シェーダー側に渡すための基本的な行列データ
  *
  */
 struct MatricesData {
-  DirectX::XMMATRIX world;     // World Matrix
-  DirectX::XMMATRIX viewproj;  // View Transformation Matrix * Projection Matrix
+  DirectX::XMMATRIX world;  // World Matrix
+  DirectX::XMMATRIX view;   // View Transformation Matrix
+  DirectX::XMMATRIX proj;   // Projection Matrix
 };
+#pragma pack(pop)
 
 /**
  * @brief アライメントに揃えたサイズを返す
@@ -1230,7 +1233,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       angle += 0.01f;
       worldMat = DirectX::XMMatrixRotationY(angle);
       mapMatrix->world = worldMat;
-      mapMatrix->viewproj = viewMat * projMat;  // row-major
+      mapMatrix->view = viewMat;
+      mapMatrix->proj = projMat;
 
       // DirectX処理
       //バックバッファのインデックスを取得

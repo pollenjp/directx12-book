@@ -2,7 +2,9 @@
 struct Output
 {
     float4 svpos : SV_POSITION; // システム用頂点座標
+    float4 pos : POSITION;      // vertex position
     float4 normal: NORMAL;
+    float4 vnormal : NORMAL1;   // ビュー変換後の法線ベクトル
     float2 uv :TEXCOORD;        // uv 値
 };
 
@@ -16,7 +18,8 @@ cbuffer cbuff0 : register(b0) // 定数バッファー
 {
     // matrix, float4x4, matrix<float, 4, 4> (same expression)
     float4x4 world_matrix;
-    float4x4 viewproj_matrix;
+    float4x4 view_matrix;
+    float4x4 proj_matrix;
 };
 
 // 定数バッファー1
