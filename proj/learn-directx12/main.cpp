@@ -75,6 +75,7 @@ struct PMDMaterial {
                                // インデックス数
   char texFilePath[20];        // 1 byte * 20 テクスチャファイルパス + alpha
 };
+#pragma pack(pop)
 
 /**
  * @brief シェーダー側に投げられるマテリアルデータ
@@ -107,7 +108,6 @@ struct Material {
   MaterialForHlsl material;
   AdditionalMaterial additional;
 };
-#pragma pack(pop)
 
 /**
  * @brief シェーダー側に渡すための基本的な行列データ
@@ -451,6 +451,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     std::vector<ID3D12Resource*> sph_resources(num_material);
     std::vector<ID3D12Resource*> spa_resources(num_material);
     fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
+#ifdef _DEBUG
     {  // debug
       for (unsigned int i = 0; i < pmd_materials.size(); i++) {
         std::string tmp_str(pmd_materials[i].texFilePath);
@@ -460,6 +461,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         ss << L"idx " << i << L" : texture file path: \"" << tmp_filepath.wstring().c_str() << L"\"" << std::endl;
         OutputDebugStringW(ss.str().c_str());
       }
+#endif
     }
 
     std::vector<Material> materials(pmd_materials.size());
@@ -470,6 +472,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       materials[i].material.specular = pmd_materials[i].specular;
       materials[i].material.specularity = pmd_materials[i].specularity;
       materials[i].material.ambient = pmd_materials[i].ambient;
+#ifdef _DEBUG
+      {  // debug
+        std::wstringstream ss;
+        ss << L"idx " << i << L" : ambient: (" << pmd_materials[i].ambient.x << ", " << pmd_materials[i].ambient.y
+           << ", " << pmd_materials[i].ambient.z << L")" << std::endl;
+        OutputDebugStringW(ss.str().c_str());
+      }
+#endif
     }
 
     fclose(fp);
@@ -499,7 +509,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       }
     }
 #else
-    result = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
+  result = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
 #endif
 
     // enumerate adapters
