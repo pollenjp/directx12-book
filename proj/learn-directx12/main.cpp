@@ -7,6 +7,7 @@
 #include <dxgi1_6.h>
 #include <tchar.h>
 
+#include <cmath>
 #include <filesystem>
 #include <istream>
 #include <sstream>
@@ -1220,6 +1221,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     MSG msg = {};
     unsigned int frame = 0;
     float angle(0.0f);
+    float angle_radian(0.0f);
     while (true) {
       if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
@@ -1230,10 +1232,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         break;
       }
 
-      angle += 0.01f;
-      worldMat = DirectX::XMMatrixRotationY(angle);
+      angle += 1.0f;
+      angle = std::fmodf(angle, 360.0f);
+      angle_radian = angle * DirectX::XM_PI / 180.0f;
+      // mapMatrix->world = DirectX::XMMatrixRotationY(angle_radian) * worldMat;
       mapMatrix->world = worldMat;
-      mapMatrix->view = viewMat;
+      mapMatrix->view = DirectX::XMMatrixRotationY(angle_radian) * viewMat;
       mapMatrix->proj = projMat;
 
       // DirectX処理
