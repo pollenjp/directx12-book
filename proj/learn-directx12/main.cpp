@@ -9,7 +9,9 @@
 
 #include <cmath>
 #include <filesystem>
+#include <functional>
 #include <istream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -26,6 +28,9 @@ namespace fs = std::filesystem;
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
+
+std::map<std::string, std::function<HRESULT(const std::wstring&, DirectX::TexMetadata*, DirectX::ScratchImage&)>>
+    loadLambdaTable;
 
 /**
  * @brief
@@ -162,14 +167,28 @@ IDXGISwapChain4* _swapchain = nullptr;
  * @brief
  * @details upload buffer (中間バッファ) を挟んで read only な texture buffer にしないのはなぜか？
  *
- * @param texPath
+ * @param tex_path_wstr
  * @return ID3D12Resource*
+ *         If tex_path_wstr is empty wstring (""), return nullptr.
+ *         If failed to load, return nullptr.
  */
 ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
   // WIC テクスチャのロード
   DirectX::TexMetadata metadata = {};
   DirectX::ScratchImage scratchImg = {};
-  auto result = DirectX::LoadFromWICFile(tex_path_wstr.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, scratchImg);
+  if (tex_path_wstr == L"") {
+#ifdef _DEBUG
+    {  // debug
+      std::wstringstream ss;
+      ss << L"LoadTextureFromFile's argument tex_path_wstr is invalid: \"" << tex_path_wstr.c_str() << L"\""
+         << std::endl;
+      OutputDebugStringW(ss.str().c_str());
+    }
+#endif
+    return nullptr;
+  }
+  fs::path tex_path(tex_path_wstr);
+  auto result = loadLambdaTable[tex_path.extension().string()](tex_path_wstr, &metadata, scratchImg);
   if (FAILED(result)) {
 #ifdef _DEBUG
     {  // debug
@@ -341,6 +360,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
                              nullptr,               //メニューハンドル
                              w.hInstance,           //呼び出しアプリケーションハンドル
                              nullptr);              //追加パラメータ
+
+    // Init Utils
+
+    loadLambdaTable[".sph"] = loadLambdaTable[".spa"] = loadLambdaTable[".bmp"] = loadLambdaTable[".png"] =
+        loadLambdaTable[".jpg"] =
+            [](const std::wstring& path, DirectX::TexMetadata* meta, DirectX::ScratchImage& img) -> HRESULT {
+      return DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_NONE, meta, img);
+    };
+    loadLambdaTable[".tga"] = [](const std::wstring& path, DirectX::TexMetadata* meta,
+                                 DirectX::ScratchImage& img) -> HRESULT {
+      return DirectX::LoadFromTGAFile(path.c_str(), meta, img);
+    };
+    loadLambdaTable[".dds"] = [](const std::wstring& path, DirectX::TexMetadata* meta,
+                                 DirectX::ScratchImage& img) -> HRESULT {
+      return DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, meta, img);
+    };
 
     //////////////
     // load pmd //
