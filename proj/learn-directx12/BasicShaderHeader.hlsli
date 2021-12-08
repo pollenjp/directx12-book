@@ -6,6 +6,7 @@ struct Output
     float4 normal: NORMAL0;     // normal
     float4 vnormal : NORMAL1;   // ビュー変換後の法線ベクトル
     float2 uv :TEXCOORD;        // uv 値
+    float3 ray : VECTOR;        // ベクトル
 };
 
 Texture2D<float4> tex : register(t0); // 0 番スロットに設定されたテクスチャ
@@ -20,6 +21,7 @@ cbuffer cbuff0 : register(b0) // 定数バッファー
     float4x4 world_matrix;
     float4x4 view_matrix;
     float4x4 proj_matrix;
+    float3 eye; // eye position
 };
 
 // 定数バッファー1

@@ -15,5 +15,6 @@ Output BasicVS(
     output.normal = mul(world_matrix, normal); // 法線にもワールド変換を行う
     output.vnormal = mul(view_matrix, output.normal); // 法線にもビュー変換を行う
     output.uv = uv;
+    output.ray = normalize(output.pos.xyz - eye.xyz);
     return output;
 }

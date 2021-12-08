@@ -104,17 +104,16 @@ struct Material {
 };
 #pragma pack(pop)
 
-#pragma pack(push, 1)  // (全てのメンバ変数が同じサイズなら設定する必要はない)
 /**
  * @brief シェーダー側に渡すための基本的な行列データ
  *
  */
-struct MatricesData {
+struct SceneMatrices {
   DirectX::XMMATRIX world;  // World Matrix
   DirectX::XMMATRIX view;   // View Transformation Matrix
   DirectX::XMMATRIX proj;   // Projection Matrix
+  DirectX::XMFLOAT3 eye;    // Eye Position
 };
-#pragma pack(pop)
 
 /**
  * @brief アライメントに揃えたサイズを返す
@@ -1164,8 +1163,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Transform Matrix //
     //////////////////////
 
-    MatricesData* mapMatrix;  // マップ先を示すポインター
+    SceneMatrices* mapMatrix;  // マップ先を示すポインター
     ID3D12Resource* constBuff = nullptr;
+    DirectX::XMFLOAT3 eye(0, 17, -5);
     DirectX::XMMATRIX worldMat;  // 4x4
     DirectX::XMMATRIX viewMat;   // 4x4
     DirectX::XMMATRIX projMat;   // 4x4
@@ -1175,7 +1175,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       // worldMat = DirectX::XMMatrixRotationY(DirectX::XM_PIDIV4);
       worldMat = DirectX::XMMatrixIdentity();
-      DirectX::XMFLOAT3 eye(0, 17, -5);
       DirectX::XMFLOAT3 target(0, 17, 0);
       DirectX::XMFLOAT3 up(0, 1, 0);
       viewMat = DirectX::XMMatrixLookAtLH(DirectX::XMLoadFloat3(&eye), DirectX::XMLoadFloat3(&target),
@@ -1188,10 +1187,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       );
 
       auto heap_propertiy = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(MatricesData) + 0xff) & ~0xff);
+      auto resource_description = CD3DX12_RESOURCE_DESC::Buffer((sizeof(SceneMatrices) + 0xff) & ~0xff);
       result = _dev->CreateCommittedResource(&heap_propertiy, D3D12_HEAP_FLAG_NONE, &resource_description,
                                              D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&constBuff));
-      result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // constant buffer に ``mapMatrix`` の内容をコピー
+      result = constBuff->Map(0, nullptr, (void**)&mapMatrix);  // constant buffer に mapMatrix の Map
 
       D3D12_DESCRIPTOR_HEAP_DESC descHeapDesc = {};
       descHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;  // シェーダーから見えるように
@@ -1239,6 +1238,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       mapMatrix->world = worldMat;
       mapMatrix->view = DirectX::XMMatrixRotationY(angle_radian) * viewMat;
       mapMatrix->proj = projMat;
+      mapMatrix->eye = eye;
 
       // DirectX処理
       //バックバッファのインデックスを取得
