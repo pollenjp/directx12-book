@@ -3,7 +3,7 @@ struct Output
 {
     float4 svpos : SV_POSITION; // システム用頂点座標
     float4 pos : POSITION;      // vertex position
-    float4 normal: NORMAL;
+    float4 normal: NORMAL0;     // normal
     float4 vnormal : NORMAL1;   // ビュー変換後の法線ベクトル
     float2 uv :TEXCOORD;        // uv 値
 };

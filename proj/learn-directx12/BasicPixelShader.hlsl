@@ -9,5 +9,6 @@ float4 BasicPS(Output input ) : SV_TARGET
         * diffuse
         * tex.Sample(smp, input.uv)
         * sph.Sample(smp, sphereMapUV)
-        + spa.Sample(smp, sphereMapUV);
+        + spa.Sample(smp, sphereMapUV)
+        + float4(ambient.rgb, 1);
 }
