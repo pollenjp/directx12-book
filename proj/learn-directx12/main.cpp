@@ -1045,19 +1045,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     rootSignatureDesc.NumParameters = 2;        // ルートパラメータ数
 
     // sampler
-    D3D12_STATIC_SAMPLER_DESC samplerDesc = {};
-    samplerDesc.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 横方向の繰り返し
-    samplerDesc.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 縦方向の繰り返し
-    samplerDesc.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 奥行きの繰り返し
-    samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;  // ボーダーは黒
-    samplerDesc.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;                   // 線形補間
-    samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;                                 // ミップマップ最大値
-    samplerDesc.MinLOD = 0.0f;                                              // ミップマップ最小値
-    samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
-    samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;      // リサンプリングしない
+    D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
 
-    rootSignatureDesc.pStaticSamplers = &samplerDesc;
-    rootSignatureDesc.NumStaticSamplers = 1;
+    samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 横方向の繰り返し
+    samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 縦方向の繰り返し
+    samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 奥行きの繰り返し
+    samplerDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;  // ボーダーは黒
+    samplerDesc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;                   // 線形補間
+    samplerDesc[0].MaxLOD = D3D12_FLOAT32_MAX;                                 // ミップマップ最大値
+    samplerDesc[0].MinLOD = 0.0f;                                              // ミップマップ最小値
+    samplerDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
+    samplerDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;      // リサンプリングしない
+    samplerDesc[0].ShaderRegister = 0;                                // register(s0)
+
+    samplerDesc[1] = samplerDesc[0];                             // 変更点以外をコピー
+    samplerDesc[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+    samplerDesc[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+    samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+    samplerDesc[1].ShaderRegister = 1;                           // register(s1)
+
+    rootSignatureDesc.pStaticSamplers = samplerDesc;
+    rootSignatureDesc.NumStaticSamplers = 2;
 
     ID3DBlob* rootSigBlob = nullptr;
     result = D3D12SerializeRootSignature(&rootSignatureDesc,              // ルートシグネチャ設定
