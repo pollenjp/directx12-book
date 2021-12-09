@@ -40,11 +40,11 @@ std::map<std::string, std::function<HRESULT(const std::wstring&, DirectX::TexMet
 std::wstring GetWideStringFromString(const std::string& str, UINT code_page = CP_ACP) {
   // 文字列数
   auto num1 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, nullptr, 0);
-  wchar_t* buf = new wchar_t[num1 + 1];
+  wchar_t* buf = new wchar_t[static_cast<std::size_t>(num1) + 1];
   auto num2 = MultiByteToWideChar(code_page, MB_PRECOMPOSED | MB_ERR_INVALID_CHARS, str.c_str(), -1, buf, num1);
   assert(num1 == num2);
   std::wstring ret_wstr(buf);
-  delete buf;
+  delete[] buf;
   return ret_wstr;
 }
 
