@@ -8,10 +8,13 @@
 #include <tchar.h>
 
 #include <cmath>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
+#include <iomanip>
 #include <istream>
 #include <map>
+#include <span>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -24,7 +27,17 @@
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "DirectXTex.lib")
+
 namespace fs = std::filesystem;
+
+std::string get_bytes_string(auto const& any_type_str) {
+  std::stringstream ss;
+  ss << std::hex << std::uppercase << std::setfill('0');
+  for (const auto byte : std::as_bytes(std::span{any_type_str})) {
+    ss << std::setw(2) << std::to_integer<unsigned>(byte);
+  }
+  return ss.str();
+}
 
 const unsigned int window_width = 1280;
 const unsigned int window_height = 720;
@@ -1203,13 +1216,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           }
           {
             std::wstringstream ss;
-            for (std::size_t i = 0; i < filepath.extension().wstring().size(); i++) {
-              ss << std::hex << (unsigned short)filepath.extension().wstring()[i] << " : " << std::endl;
+            std::string ext_bytes_str;
+            ext_bytes_str = get_bytes_string(filepath.extension().wstring());
+            for (std::size_t i = 0; i < ext_bytes_str.size(); i += 2) {
+              ss << (wchar_t)ext_bytes_str.at(i) << (wchar_t)ext_bytes_str.at(i + 1) << L" ";
             }
-            std::wstring tmp_wstr(L".sph");
-            for (std::size_t i = 0; i < tmp_wstr.size(); i++) {
-              ss << std::hex << (unsigned short)tmp_wstr[i] << " : " << tmp_wstr[i] << std::endl;
+            ss << std::endl;
+            ext_bytes_str = get_bytes_string(std::wstring(L".sph"));
+            for (std::size_t i = 0; i < ext_bytes_str.size(); i += 2) {
+              ss << (wchar_t)ext_bytes_str.at(i) << (wchar_t)ext_bytes_str.at(i + 1) << L" ";
             }
+            ss << std::endl;
             OutputDebugStringW(ss.str().c_str());
           }
 #endif
