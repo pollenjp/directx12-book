@@ -16,7 +16,10 @@ float4 BasicPS(Output input ) : SV_TARGET
     float2 sphereMapUV = (input.vnormal.xy + float2(1, -1)) * float2(0.5, -0.5);
     float4 texture_color_component = tex.Sample(smp, input.uv);
 
-    float4 brightness = float4(max(dot(-light, input.normal.xyz), ambient.rgb), 1);
+    float diffuseB = saturate(dot(- light, input.normal.xyz));
+    float4 toon_diffuse = toon.Sample(smp, float2(0, 1.0 - diffuseB));
+
+    float4 brightness = float4(max(toon_diffuse.rgb, ambient.rgb), 1);
     return brightness
         * diffuse.rgba
         * texture_color_component.rgba

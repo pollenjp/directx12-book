@@ -163,6 +163,9 @@ ID3D12GraphicsCommandList* _cmdList = nullptr;
 ID3D12CommandQueue* _cmdQueue = nullptr;
 IDXGISwapChain4* _swapchain = nullptr;
 
+// ファイル名パスとリソースのマップテーブル
+std::map<std::wstring, ID3D12Resource*> resource_table;
+
 /**
  * @brief
  * @details upload buffer (中間バッファ) を挟んで read only な texture buffer にしないのはなぜか？
@@ -173,6 +176,11 @@ IDXGISwapChain4* _swapchain = nullptr;
  *         If failed to load, return nullptr.
  */
 ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
+  auto it = resource_table.find(tex_path_wstr);
+  if (it != resource_table.end()) {
+    return it->second;
+  }
+
   // WIC テクスチャのロード
   DirectX::TexMetadata metadata = {};
   DirectX::ScratchImage scratchImg = {};
@@ -249,6 +257,7 @@ ID3D12Resource* LoadTextureFromFile(const std::wstring& tex_path_wstr) {
       return nullptr;
     }
   }
+  resource_table[tex_path_wstr] = texbuff;
   return texbuff;
 }
 
@@ -294,6 +303,55 @@ ID3D12Resource* CreateOneValueTexture(unsigned int fill_value) {
   // データ転送
   result = whiteBuff->WriteToSubresource(0, nullptr, data.data(), width * height, data.size());
   return whiteBuff;
+}
+
+// デフォルトグラデーションテクスチャ
+ID3D12Resource* CreateGrayGradationTexture() {
+  D3D12_HEAP_PROPERTIES texHeapProp = {};
+  texHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
+  texHeapProp.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_WRITE_BACK;
+  texHeapProp.MemoryPoolPreference = D3D12_MEMORY_POOL_L0;
+  texHeapProp.CreationNodeMask = 0;
+  texHeapProp.VisibleNodeMask = 0;
+
+  int width = 4;  // 4: RGBA
+  int height = 256;
+
+  D3D12_RESOURCE_DESC resDesc = {};
+  resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+  resDesc.Width = width;    // 幅
+  resDesc.Height = height;  // 高さ
+  resDesc.DepthOrArraySize = 1;
+  resDesc.SampleDesc.Count = 1;
+  resDesc.SampleDesc.Quality = 0;
+  resDesc.MipLevels = 1;
+  resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+  resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+  ID3D12Resource* gradation_buffer = nullptr;
+  auto result = _dev->CreateCommittedResource(&texHeapProp,
+                                              D3D12_HEAP_FLAG_NONE,  // 特に指定なし
+                                              &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr,
+                                              IID_PPV_ARGS(&gradation_buffer));
+
+  // 上が白くて下が黒いテクスチャデータを作成
+  std::vector<unsigned int> data(width * height);
+  auto it = data.begin();
+  unsigned int c = 0xff;  // 4 bytes (8*4=32 bits) : 0x000000ff
+  for (; it != data.end(); it += width) {
+    // RGBAが逆並びしているためRGBマクロと0xff<<24を用いて表す
+    // A : 0xff
+    // B : c
+    // G : c
+    // R : c
+    auto col = (0xff << 24) | RGB(c, c, c);
+    std::fill(it, it + width, col);
+    --c;
+  }
+  result = gradation_buffer->WriteToSubresource(0, nullptr, data.data(), width * sizeof(unsigned int),
+                                                sizeof(unsigned int) * data.size());
+  return gradation_buffer;
 }
 
 /**
@@ -393,8 +451,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
     FILE* fp;
     // const fs::path model_filepath = fs::absolute(L"Model/初音ミク.pmd");
-    const fs::path model_filepath = fs::absolute(L"Model/巡音ルカ.pmd");
-    // const fs::path model_filepath = fs::absolute(L"Model/初音ミクmetal.pmd");
+    // const fs::path model_filepath = fs::absolute(L"Model/巡音ルカ.pmd");
+    const fs::path model_filepath = fs::absolute(L"Model/初音ミクmetal.pmd");
     {  // debug
       std::wstringstream ss;
       ss << L"Model filepath is \"" << model_filepath.wstring() << L"\"" << std::endl;
@@ -450,6 +508,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     std::vector<ID3D12Resource*> texture_resources(num_material);
     std::vector<ID3D12Resource*> sph_resources(num_material);
     std::vector<ID3D12Resource*> spa_resources(num_material);
+    std::vector<ID3D12Resource*> toon_resources(num_material);
     fread(pmd_materials.data(), pmd_materials.size() * sizeof(PMDMaterial), 1, fp);
 #ifdef _DEBUG
     {  // debug
@@ -957,8 +1016,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       // textures
       // register(t0) : texture
-      // register(t1) : sphere map texture
-      descriptor_range[2].NumDescriptors = 3;                           // テクスチャ2つ
+      // register(t1) : sph texture
+      // register(t2) : spa texture
+      // register(t3) : toon texture
+      descriptor_range[2].NumDescriptors = 4;                           // テクスチャ2つ
       descriptor_range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;  // 種別はテクスチャ
       descriptor_range[2].BaseShaderRegister = 0;                       // 0 番スロットから
       descriptor_range[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
@@ -1042,6 +1103,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Material buffer / Material Buffer View //
     ////////////////////////////////////////////
 
+    // transform matrix
+    // material
+    // sph texture
+    // spa texture
+    // toon texture
+    auto cbv_rsv_count_per_material = 5;
+
     ID3D12DescriptorHeap* materialDescHeap = nullptr;
     D3D12_CONSTANT_BUFFER_VIEW_DESC matCBVDesc = {};
     std::size_t material_buff_size;
@@ -1072,7 +1140,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       D3D12_DESCRIPTOR_HEAP_DESC matDescHeapDesc = {};
       matDescHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
       matDescHeapDesc.NodeMask = 0;
-      matDescHeapDesc.NumDescriptors = num_material * 4;  // マテリアル数を指定
+      matDescHeapDesc.NumDescriptors = num_material * cbv_rsv_count_per_material;  // マテリアル数を指定
       matDescHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
       result = _dev->CreateDescriptorHeap(&matDescHeapDesc, IID_PPV_ARGS(&materialDescHeap));
 
@@ -1084,6 +1152,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       ////////////////////
 
       for (int i = 0; i < pmd_materials.size(); ++i) {
+        // トゥーン番号とトゥーンテクスチャのファイル名との関係
+        //  _________________________
+        // | toon index | filename   |
+        // |        255 | toon00.bmp |
+        // |          0 | toon01.bmp |
+        // |          1 | toon02.bmp |
+        // |          2 | toon03.bmp |
+        //  _________________________
+
+        // トゥーンリソースの読み込み
+        std::wstringstream ss;
+        ss << L"toon" << std::setw(2) << std::setfill(L'0') << ((pmd_materials[i].toonIdx + 1) & 0xff) << L".bmp";
+        fs::path toon_filepath = model_filepath.parent_path() / fs::path("toon") / fs::path(ss.str());
+#ifdef _DEBUG
+        {
+          std::wstringstream ss;
+          ss << L"Toon file : \"" << toon_filepath.wstring() << L"\" (" << (pmd_materials[i].toonIdx + 1) << L")"
+             << std::endl;
+          OutputDebugStringW(ss.str().c_str());
+        }
+#endif
+        toon_resources[i] = LoadTextureFromFile(toon_filepath.wstring());
+
         if (strlen(pmd_materials[i].texFilePath) == 0) {
           texture_resources[i] = nullptr;
         }
@@ -1155,13 +1246,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       // 通常テクスチャビュー作成
       {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;                                 // デフォルト
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;  // 後述
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;                       // 2D テクスチャ
-        srvDesc.Texture2D.MipLevels = 1;  // ミップマップは使用しないので1
+        srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;  // デフォルト
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
+        srvDesc.Texture2D.MipLevels = 1;                        // ミップマップは使用しないので1
 
         auto white_tex = CreateOneValueTexture(0xff);
         auto black_tex = CreateOneValueTexture(0x00);
+        auto gradation_tex = CreateGrayGradationTexture();
         auto matDescHeapH = materialDescHeap->GetCPUDescriptorHandleForHeapStart();
         auto inc_size = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         for (int i = 0; i < num_material; ++i) {
@@ -1198,6 +1290,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
           } else {
             srvDesc.Format = spa_resources[i]->GetDesc().Format;
             _dev->CreateShaderResourceView(spa_resources[i], &srvDesc, matDescHeapH);
+          }
+          matDescHeapH.ptr += inc_size;
+
+          if (toon_resources[i] == nullptr) {
+            srvDesc.Format = gradation_tex->GetDesc().Format;
+            _dev->CreateShaderResourceView(gradation_tex, &srvDesc, matDescHeapH);
+          } else {
+            srvDesc.Format = toon_resources[i]->GetDesc().Format;
+            _dev->CreateShaderResourceView(toon_resources[i], &srvDesc, matDescHeapH);
           }
           matDescHeapH.ptr += inc_size;
         }
@@ -1276,7 +1377,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         break;
       }
 
-      angle += 1.0f;
+      angle += 2.0f;
       angle = std::fmodf(angle, 360.0f);
       angle_radian = angle * DirectX::XM_PI / 180.0f;
       // mapMatrix->world = DirectX::XMMatrixRotationY(angle_radian) * worldMat;
@@ -1333,7 +1434,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       auto material_descriptor_handle = materialDescHeap->GetGPUDescriptorHandleForHeapStart();
       unsigned int idxOffset = 0;
-      auto cbvsrvIncSize = _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * 4;
+      auto cbvsrvIncSize =
+          _dev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) * cbv_rsv_count_per_material;
       for (auto& m : materials) {
         _cmdList->SetGraphicsRootDescriptorTable(1, material_descriptor_handle);
         _cmdList->DrawIndexedInstanced(m.indicesNum, 1, idxOffset, 0, 0);
