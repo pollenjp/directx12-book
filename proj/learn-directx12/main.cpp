@@ -6,6 +6,7 @@
 #include <d3dx12.h>
 #include <dxgi1_6.h>
 #include <tchar.h>
+#include <wrl.h>
 
 #include <cmath>
 #include <cstddef>
@@ -169,12 +170,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
   return DefWindowProc(hwnd, msg, wparam, lparam);  //規定の処理を行う
 }
 
-IDXGIFactory6* _dxgiFactory = nullptr;
-ID3D12Device* _dev = nullptr;
-ID3D12CommandAllocator* _cmdAllocator = nullptr;
-ID3D12GraphicsCommandList* _cmdList = nullptr;
-ID3D12CommandQueue* _cmdQueue = nullptr;
-IDXGISwapChain4* _swapchain = nullptr;
+Microsoft::WRL::ComPtr<IDXGIFactory6> _dxgiFactory = nullptr;
+Microsoft::WRL::ComPtr<ID3D12Device> _dev = nullptr;
+Microsoft::WRL::ComPtr<ID3D12CommandAllocator> _cmdAllocator = nullptr;
+Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> _cmdList = nullptr;
+Microsoft::WRL::ComPtr<ID3D12CommandQueue> _cmdQueue = nullptr;
+Microsoft::WRL::ComPtr<IDXGISwapChain4> _swapchain = nullptr;
 
 // ファイル名パスとリソースのマップテーブル
 std::map<std::wstring, ID3D12Resource*> resource_table;
@@ -573,15 +574,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // DXGI (DirectX Graphics Infrastructure)
     result = S_OK;
 #ifdef _DEBUG
-    if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(&_dxgiFactory)))) {
+    if (FAILED(CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, IID_PPV_ARGS(_dxgiFactory.ReleaseAndGetAddressOf())))) {
       // CreateDXGIFactory2 に失敗した場合は, DEBUG フラグを外して再実行
-      if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(&_dxgiFactory)))) {
+      if (FAILED(CreateDXGIFactory2(0, IID_PPV_ARGS(_dxgiFactory.ReleaseAndGetAddressOf())))) {
         // それでも FAIL する場合は, error return.
         return -1;
       }
     }
 #else
-  result = CreateDXGIFactory1(IID_PPV_ARGS(&_dxgiFactory));
+  result = CreateDXGIFactory1(IID_PPV_ARGS(_dxgiFactory.releaseAndGetAddressOf()));
 #endif
 
     // enumerate adapters
@@ -611,7 +612,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Direct3Dデバイスの初期化
     D3D_FEATURE_LEVEL featureLevel;
     for (auto l : levels) {
-      if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(&_dev)) == S_OK) {
+      if (D3D12CreateDevice(tmpAdapter, l, IID_PPV_ARGS(_dev.ReleaseAndGetAddressOf())) == S_OK) {
         featureLevel = l;
         break;
       }
@@ -621,12 +622,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
 
     // Create command list and command allocator
-    result = _dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&_cmdAllocator));
+    result = _dev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                          IID_PPV_ARGS(_cmdAllocator.ReleaseAndGetAddressOf()));
     result = _dev->CreateCommandList(0,  // 0 is single-GPU operation
                                      D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                     _cmdAllocator,  // この Command Allocator に対応する
-                                     nullptr,        //  nulltpr : dummy initial pipeline state
-                                     IID_PPV_ARGS(&_cmdList));
+                                     _cmdAllocator.Get(),  // この Command Allocator に対応する
+                                     nullptr,              //  nulltpr : dummy initial pipeline state
+                                     IID_PPV_ARGS(_cmdList.ReleaseAndGetAddressOf()));
 
     {
       // command queue
@@ -635,7 +637,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       cmdQueueDesc.NodeMask = 0;
       cmdQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;  // プライオリティ特に指定なし
       cmdQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;           // same as Command List.
-      result = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(&_cmdQueue));
+      result = _dev->CreateCommandQueue(&cmdQueueDesc, IID_PPV_ARGS(_cmdQueue.ReleaseAndGetAddressOf()));
 
       // swap chain
       DXGI_SWAP_CHAIN_DESC1 swapchainDesc = {};
@@ -653,13 +655,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       swapchainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
       // 先に作った ``hwnd`` の Swap Chain を作成
-      result = _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue,                      // command queue
-                                                    hwnd,                           // a handle to a window
-                                                    &swapchainDesc,                 // desc
-                                                    nullptr,                        // window mode
-                                                    nullptr,                        // not restrict content
-                                                    (IDXGISwapChain1**)&_swapchain  // out parameter
-      );
+      result = _dxgiFactory->CreateSwapChainForHwnd(_cmdQueue.Get(),  // command queue
+                                                    hwnd,             // a handle to a window
+                                                    &swapchainDesc,   // desc
+                                                    nullptr,          // window mode
+                                                    nullptr,          // not restrict content
+                                                    (IDXGISwapChain1**)_swapchain.ReleaseAndGetAddressOf());
     }
 
     ////////////////////////
@@ -670,7 +671,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     result = _swapchain->GetDesc(&swcDesc);
     std::vector<ID3D12Resource*> _backBuffers(swcDesc.BufferCount);
 
-    ID3D12DescriptorHeap* rtvHeaps = nullptr;  // out parameter 用
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeaps = nullptr;
 
     {
       // discriptor heap
@@ -679,7 +680,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       heapDesc.NodeMask = 0;                             // only use single GPU
       heapDesc.NumDescriptors = 2;                       // double buffering (front, back buffer)
       heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;  // 特に指定なし
-      result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&rtvHeaps));
+      result = _dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(rtvHeaps.ReleaseAndGetAddressOf()));
 
       // Discriptor と スワップチェーン上のバックバッファと関連付け
 
@@ -702,9 +703,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Fence //
     ///////////
 
-    ID3D12Fence* _fence = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Fence> _fence = nullptr;
     UINT64 _fenceVal = 0;
-    result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
+    result = _dev->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(_fence.ReleaseAndGetAddressOf()));
     if (result != S_OK) {
       throw std::runtime_error("Failed to create fence");
     }
@@ -724,12 +725,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     ////////////////////////////////////////
 
     D3D12_VERTEX_BUFFER_VIEW vbView = {};
+    Microsoft::WRL::ComPtr<ID3D12Resource> vertBuff = nullptr;
+    // ID3D12Resource* vertBuff = nullptr;
     {
-      ID3D12Resource* vertBuff = nullptr;
       auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
       auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(vertices.size() * sizeof(vertices[0]));
       result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc,
-                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
+                                             // D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&vertBuff));
+                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                                             IID_PPV_ARGS(vertBuff.ReleaseAndGetAddressOf()));
 
       // copy vertices data to vertex buffer
       PMD_VERTEX* vertMap = nullptr;
@@ -751,12 +755,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     //////////////////////////////////////
 
     D3D12_INDEX_BUFFER_VIEW ibView = {};
+    Microsoft::WRL::ComPtr<ID3D12Resource> idxBuff = nullptr;
     {
-      ID3D12Resource* idxBuff = nullptr;
       auto heapprop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
       auto resdesc = CD3DX12_RESOURCE_DESC::Buffer(indices.size() * sizeof(indices[0]));
-      result = _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc,
-                                             D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&idxBuff));
+      result =
+          _dev->CreateCommittedResource(&heapprop, D3D12_HEAP_FLAG_NONE, &resdesc, D3D12_RESOURCE_STATE_GENERIC_READ,
+                                        nullptr, IID_PPV_ARGS(idxBuff.ReleaseAndGetAddressOf()));
 
       // 作ったバッファにインデックスデータをコピー
       unsigned short* mappedIdx = nullptr;
@@ -771,8 +776,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     }
 
     // Depth buffer / Depth buffer view //
-    ID3D12DescriptorHeap* dsvHeap = nullptr;
-    ID3D12Resource* depthBuffer = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12Resource> depthBuffer = nullptr;
     {
       // create depth buffer
 
@@ -796,7 +801,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
       result = _dev->CreateCommittedResource(&depthHeapProp, D3D12_HEAP_FLAG_NONE, &depthResDesc,
                                              D3D12_RESOURCE_STATE_DEPTH_WRITE,  // 深度値書き込みに使用
-                                             &depthClearValue, IID_PPV_ARGS(&depthBuffer));
+                                             &depthClearValue, IID_PPV_ARGS(depthBuffer.ReleaseAndGetAddressOf()));
 
       // depth buffer view
 
@@ -805,7 +810,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       dsvHeapDesc.NumDescriptors = 1;                     // 深度ビューは1 つ
       dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;  // デプスステンシルビューとして使う
 
-      result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&dsvHeap));
+      result = _dev->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(dsvHeap.ReleaseAndGetAddressOf()));
 
       // 深度ビュー作成
       D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
@@ -813,7 +818,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;  // 2D テクスチャ
       dsvDesc.Flags = D3D12_DSV_FLAG_NONE;                    // フラグは特になし
 
-      _dev->CreateDepthStencilView(depthBuffer, &dsvDesc, dsvHeap->GetCPUDescriptorHandleForHeapStart());
+      _dev->CreateDepthStencilView(depthBuffer.Get(), &dsvDesc, dsvHeap->GetCPUDescriptorHandleForHeapStart());
     }
 
     ///////////////////////
@@ -1005,7 +1010,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     // Root Signature //
     ////////////////////
 
-    ID3D12RootSignature* rootsignature = nullptr;
     D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = {};
     // D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : 頂点情報 (入力アセンブラ) がある
     rootSignatureDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -1057,39 +1061,42 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     rootSignatureDesc.pParameters = rootparam;  // ルートパラメータの先頭アドレス
     rootSignatureDesc.NumParameters = 2;        // ルートパラメータ数
 
-    // sampler
-    D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
+    {
+      // sampler
+      D3D12_STATIC_SAMPLER_DESC samplerDesc[2] = {};
 
-    samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 横方向の繰り返し
-    samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 縦方向の繰り返し
-    samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 奥行きの繰り返し
-    samplerDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;  // ボーダーは黒
-    samplerDesc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;                   // 線形補間
-    samplerDesc[0].MaxLOD = D3D12_FLOAT32_MAX;                                 // ミップマップ最大値
-    samplerDesc[0].MinLOD = 0.0f;                                              // ミップマップ最小値
-    samplerDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
-    samplerDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;      // リサンプリングしない
-    samplerDesc[0].ShaderRegister = 0;                                // register(s0)
+      samplerDesc[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 横方向の繰り返し
+      samplerDesc[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 縦方向の繰り返し
+      samplerDesc[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;                 // 奥行きの繰り返し
+      samplerDesc[0].BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;  // ボーダーは黒
+      samplerDesc[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;                   // 線形補間
+      samplerDesc[0].MaxLOD = D3D12_FLOAT32_MAX;                                 // ミップマップ最大値
+      samplerDesc[0].MinLOD = 0.0f;                                              // ミップマップ最小値
+      samplerDesc[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;  // ピクセルシェーダーから見える
+      samplerDesc[0].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;      // リサンプリングしない
+      samplerDesc[0].ShaderRegister = 0;                                // register(s0)
 
-    samplerDesc[1] = samplerDesc[0];                             // 変更点以外をコピー
-    samplerDesc[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
-    samplerDesc[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
-    samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
-    samplerDesc[1].ShaderRegister = 1;                           // register(s1)
+      samplerDesc[1] = samplerDesc[0];                             // 変更点以外をコピー
+      samplerDesc[1].AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+      samplerDesc[1].AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+      samplerDesc[1].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;  // 繰り返さない
+      samplerDesc[1].ShaderRegister = 1;                           // register(s1)
 
-    rootSignatureDesc.pStaticSamplers = samplerDesc;
-    rootSignatureDesc.NumStaticSamplers = 2;
+      rootSignatureDesc.pStaticSamplers = samplerDesc;
+      rootSignatureDesc.NumStaticSamplers = 2;
+    }
 
     ID3DBlob* rootSigBlob = nullptr;
     result = D3D12SerializeRootSignature(&rootSignatureDesc,              // ルートシグネチャ設定
                                          D3D_ROOT_SIGNATURE_VERSION_1_0,  // ルートシグネチャバージョン
                                          &rootSigBlob, &errorBlob);
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> rootsignature = nullptr;
     result = _dev->CreateRootSignature(0,  // nodemask
                                        rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(),
-                                       IID_PPV_ARGS(&rootsignature));
+                                       IID_PPV_ARGS(rootsignature.ReleaseAndGetAddressOf()));
     rootSigBlob->Release();
 
-    gpipeline.pRootSignature = rootsignature;
+    gpipeline.pRootSignature = rootsignature.Get();
 
     //////////////////////////////
     // Create Graphics Pipeline //
@@ -1340,7 +1347,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
     DirectX::XMMATRIX worldMat;  // 4x4
     DirectX::XMMATRIX viewMat;   // 4x4
     DirectX::XMMATRIX projMat;   // 4x4
-    ID3D12DescriptorHeap* basic_descriptor_heap = nullptr;
+    Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> basic_descriptor_heap = nullptr;
     {
       // Homography
 
@@ -1370,7 +1377,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       // SRV (Shader Resouce View), CBV (Constant Buffer View), UAV (Unordered Access View)
       descHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 
-      result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(&basic_descriptor_heap));
+      result = _dev->CreateDescriptorHeap(&descHeapDesc, IID_PPV_ARGS(basic_descriptor_heap.ReleaseAndGetAddressOf()));
 
       // デスクリプタの先頭ハンドルを取得しておく
       auto basicHeapHandle = basic_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
@@ -1447,10 +1454,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->IASetVertexBuffers(0, 1, &vbView);
       _cmdList->IASetIndexBuffer(&ibView);
 
-      _cmdList->SetGraphicsRootSignature(rootsignature);
+      _cmdList->SetGraphicsRootSignature(rootsignature.Get());
 
       // WVP matrix (World View Projection Matrix)
-      _cmdList->SetDescriptorHeaps(1, &basic_descriptor_heap);
+      ID3D12DescriptorHeap* bdh[] = {basic_descriptor_heap.Get()};
+      _cmdList->SetDescriptorHeaps(1, bdh);
       _cmdList->SetGraphicsRootDescriptorTable(
           0,                                                             // root parameter index for SRV
           basic_descriptor_heap->GetGPUDescriptorHandleForHeapStart());  // ヒープアドレス
@@ -1476,11 +1484,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
       _cmdList->Close();
 
       //コマンドリストの実行
-      ID3D12CommandList* cmdlists[] = {_cmdList};
+      ID3D12CommandList* cmdlists[] = {_cmdList.Get()};
       _cmdQueue->ExecuteCommandLists(1, cmdlists);
 
       ////待ち
-      _cmdQueue->Signal(_fence, ++_fenceVal);
+      _cmdQueue->Signal(_fence.Get(), ++_fenceVal);
 
       if (_fence->GetCompletedValue() != _fenceVal) {
         auto event = CreateEvent(nullptr, false, false, nullptr);
@@ -1491,8 +1499,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
         }
       }
 
-      _cmdAllocator->Reset();                          //キューをクリア
-      _cmdList->Reset(_cmdAllocator, _pipelinestate);  //再びコマンドリストをためる準備
+      _cmdAllocator->Reset();                                //キューをクリア
+      _cmdList->Reset(_cmdAllocator.Get(), _pipelinestate);  //再びコマンドリストをためる準備
 
       //フリップ
       _swapchain->Present(1, 0);
